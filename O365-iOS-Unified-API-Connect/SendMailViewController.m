@@ -53,14 +53,15 @@
     
     // Constructing request to send mail to logged in user's mailbox
     NSString *filePath = [[NSBundle mainBundle] pathForResource:@"EmailBody" ofType:@"json" ];
-    NSString *postString = [NSString stringWithContentsOfFile:filePath encoding:NSUTF8StringEncoding error:nil];
+    NSString *postString = [[NSString stringWithContentsOfFile:filePath encoding:NSUTF8StringEncoding error:nil]
+                            stringByReplacingOccurrencesOfString:@"<EMAIL>" withString:[[AuthenticationManager sharedInstance] emailAddress]];
     
     NSLog(@"%@", postString);
     
     NSData *postData = [postString dataUsingEncoding:NSUTF8StringEncoding allowLossyConversion:YES];
     
-    NSMutableURLRequest *request = [[NSMutableURLRequest alloc] initWithURL:[NSURL URLWithString:@"https://graph.microsoft.com/beta/me/messages/sendMail"]];
-    
+    NSMutableURLRequest *request = [[NSMutableURLRequest alloc] initWithURL:[NSURL URLWithString:@"https://graph.microsoft.com/beta/me/sendMail"]];
+
     [request setHTTPMethod:@"POST"];
     
     [request setValue:@"application/json;charset=utf-8" forHTTPHeaderField:@"Content-Type"];
@@ -77,6 +78,7 @@
     
     
     NSURLConnection *conn = [[NSURLConnection alloc] initWithRequest:request delegate:self];
+    
     if(conn) {
         NSLog(@"Connection Successful");
     } else {
@@ -90,24 +92,17 @@
 }
 
 #pragma mark - NSURLConnection delegates
-// This method is used to receive the data that we get by using the post method.
-- (void)connection:(NSURLConnection *)connection didReceiveData:(NSData*)data{
-    NSLog(@"%@", [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding]);
-    
+- (void)connection:(NSURLConnection *)connection didReceiveResponse:(NSURLResponse *)response{
     [self showSendingUI:NO];
-    self.statusTextView.text = @"Check your inbox, you have a new message. :)";
-}
-
-// This method receives the error report in case a connection is not made to the server.
-- (void)connection:(NSURLConnection *)connection didFailWithError:(NSError *)error{
-    NSLog(@"%s - %@", __func__, error);
-    [self showSendingUI:NO];
-    self.statusTextView.text = @"The email could not be sent. Check the log for errors.";
-}
-
-// This method is used to process the data after a connection has been made successfully.
-- (void)connectionDidFinishLoading:(NSURLConnection *)connection{
     
+    NSHTTPURLResponse *httpResponse = (NSHTTPURLResponse *) response;
+
+    if([httpResponse statusCode] == 202){
+            self.statusTextView.text = @"Check your inbox, you have a new message. :)";
+    }
+    else{
+        self.statusTextView.text = @"The email could not be sent. Check the log for errors.";
+    }
 }
 
 #pragma mark - Helpers

@@ -1,17 +1,17 @@
 {
     "Message": {
-        "Subject": "Meet for lunch?",
+        "Subject": "Unified API snippets",
         "Body": {
             "ContentType": "Text",
-            "Content": "The new cafeteria is open."
+            "Content": "You can send an email by making a POST request to /me/sendMail."
         },
         "ToRecipients": [
                          {
                          "EmailAddress": {
-                         "Address": "jak@microsoft.com"
+                         "Address": "<EMAIL>"
                          }
                          }
                          ]
     },
-    "SaveToSentItems": "false"
+    "SaveToSentItems": "true"
 }
