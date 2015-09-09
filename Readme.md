@@ -1,4 +1,4 @@
-# Office 365 Connect Sample for iOS Using Unified API
+# Office 365 Connect Sample for iOS Using Unified API (Preview)
 
 Connecting to Office 365 is the first step every iOS app must take to start working with Office 365 services and data. This sample shows how to connect and then call one API through the Unified API.
 
