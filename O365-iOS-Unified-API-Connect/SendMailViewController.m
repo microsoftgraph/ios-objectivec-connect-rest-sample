@@ -53,10 +53,10 @@
     
     // Constructing request to send mail to logged in user's mailbox
     NSString *filePath = [[NSBundle mainBundle] pathForResource:@"EmailBody" ofType:@"json" ];
+    
+    // Replace email 
     NSString *postString = [[NSString stringWithContentsOfFile:filePath encoding:NSUTF8StringEncoding error:nil]
                             stringByReplacingOccurrencesOfString:@"<EMAIL>" withString:[[AuthenticationManager sharedInstance] emailAddress]];
-    
-    NSLog(@"%@", postString);
     
     NSData *postData = [postString dataUsingEncoding:NSUTF8StringEncoding allowLossyConversion:YES];
     
@@ -72,11 +72,7 @@
     
     
     [request setHTTPBody:postData];
-    
-    //              [request setValue:@(length) forKey:@"Content-Length"];
-    
-    
-    
+
     NSURLConnection *conn = [[NSURLConnection alloc] initWithRequest:request delegate:self];
     
     if(conn) {
@@ -84,8 +80,6 @@
     } else {
         NSLog(@"Connection could not be made");
     }
-    
-    NSLog(@"%@", request);
     
     [conn start];
 

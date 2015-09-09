@@ -20,7 +20,7 @@
             </objects>
             <point key="canvasLocation" x="-522" y="-167"/>
         </scene>
-        <!--Convergence Connect-->
+        <!--Unified API Connect-->
         <scene sceneID="aoh-rE-GdY">
             <objects>
                 <viewController id="paT-v3-QGw" customClass="SendMailViewController" sceneMemberID="viewController">
@@ -37,12 +37,12 @@
                                 <fontDescription key="fontDescription" type="system" pointSize="20"/>
                                 <nil key="highlightedColor"/>
                             </label>
-                            <textField opaque="NO" clipsSubviews="YES" contentMode="scaleToFill" contentHorizontalAlignment="left" contentVerticalAlignment="center" borderStyle="roundedRect" minimumFontSize="17" translatesAutoresizingMaskIntoConstraints="NO" id="jq2-co-MFE">
+                            <textField opaque="NO" clipsSubviews="YES" userInteractionEnabled="NO" contentMode="scaleToFill" contentHorizontalAlignment="left" contentVerticalAlignment="center" borderStyle="roundedRect" minimumFontSize="17" translatesAutoresizingMaskIntoConstraints="NO" id="jq2-co-MFE">
                                 <rect key="frame" x="160" y="242" width="280" height="30"/>
                                 <fontDescription key="fontDescription" type="system" pointSize="14"/>
                                 <textInputTraits key="textInputTraits"/>
                             </textField>
-                            <textView clipsSubviews="YES" multipleTouchEnabled="YES" contentMode="scaleToFill" text="You're now connected to Office 365. Tap the Send button below to send a message from your account using the Office 365 SDK." translatesAutoresizingMaskIntoConstraints="NO" id="BKr-86-Eu6">
+                            <textView clipsSubviews="YES" multipleTouchEnabled="YES" userInteractionEnabled="NO" contentMode="scaleToFill" text="You're now connected to Office 365. Tap the Send button below to send a message from your account using the Office 365 SDK." translatesAutoresizingMaskIntoConstraints="NO" id="BKr-86-Eu6">
                                 <rect key="frame" x="160" y="146" width="280" height="88"/>
                                 <color key="backgroundColor" white="1" alpha="1" colorSpace="calibratedWhite"/>
                                 <constraints>
@@ -56,7 +56,7 @@
                                 <rect key="frame" x="282" y="321" width="37" height="37"/>
                                 <color key="color" red="0.17254901959999999" green="0.17254901959999999" blue="0.17254901959999999" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
                             </activityIndicatorView>
-                            <textView clipsSubviews="YES" multipleTouchEnabled="YES" contentMode="scaleToFill" text="Status text here" textAlignment="center" translatesAutoresizingMaskIntoConstraints="NO" id="z5E-O2-rsp">
+                            <textView clipsSubviews="YES" multipleTouchEnabled="YES" userInteractionEnabled="NO" contentMode="scaleToFill" text="Status text here" textAlignment="center" translatesAutoresizingMaskIntoConstraints="NO" id="z5E-O2-rsp">
                                 <rect key="frame" x="160" y="366" width="280" height="130"/>
                                 <color key="backgroundColor" white="1" alpha="1" colorSpace="calibratedWhite"/>
                                 <constraints>
@@ -97,7 +97,7 @@
                             <constraint firstItem="BKr-86-Eu6" firstAttribute="trailing" secondItem="jq2-co-MFE" secondAttribute="trailing" id="oQP-hw-wXh"/>
                         </constraints>
                     </view>
-                    <navigationItem key="navigationItem" title="Convergence Connect" id="ftl-Ok-tXr">
+                    <navigationItem key="navigationItem" title="Unified API Connect" id="ftl-Ok-tXr">
                         <barButtonItem key="rightBarButtonItem" title="Disconnect" id="6vM-FB-6jh">
                             <connections>
                                 <action selector="disconnectTapped:" destination="paT-v3-QGw" id="KZZ-DX-YXT"/>

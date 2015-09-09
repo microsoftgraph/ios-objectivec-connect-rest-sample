@@ -14,13 +14,7 @@
 @property (nonatomic, strong) NSString *redirectUri;
 @property (nonatomic, strong) NSString *resourceID;
 
-
-
 @property (nonatomic, strong) ADAuthenticationContext *context;
-
-
-
-
 
 @end
 
@@ -111,6 +105,14 @@
 #pragma mark - clear credentials
  //Clears the ADAL token cache and the cookie cache.
 - (void) clearCredentials{
+
+    // Remove all the cookies from this application's sandbox. The authorization code is stored in the
+    // cookies and ADAL will try to get to access tokens based on auth code in the cookie.
+    NSHTTPCookieStorage *cookieStore = [NSHTTPCookieStorage sharedHTTPCookieStorage];
+    for (NSHTTPCookie *cookie in cookieStore.cookies) {
+        [cookieStore deleteCookie:cookie];
+    }
+    
     [self.context.tokenCacheStore removeAllWithError:nil];
 }
 

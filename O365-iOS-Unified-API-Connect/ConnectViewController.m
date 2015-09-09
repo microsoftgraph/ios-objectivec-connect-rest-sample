@@ -13,11 +13,9 @@
 NSString * const kRedirectUri = @"ENTER_REDIRECT_URI_HERE";
 NSString * const kClientId    = @"ENTER_CLIENT_ID_HERE";
 NSString * const kAuthority   = @"https://login.microsoftonline.com/common";
-
 @interface ConnectViewController()
 
 @property (nonatomic, strong) ADAuthenticationContext *adContext;
-@property (nonatomic, strong) NSArray *adScopes;
 
 @property (weak, nonatomic) IBOutlet UIActivityIndicatorView *activityIndicator;
 @property (weak, nonatomic) IBOutlet UIButton *connectButton;
