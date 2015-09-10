@@ -2,6 +2,6 @@
 <Workspace
    version = "1.0">
    <FileRef
-      location = "self:iOS-Convergence.xcodeproj">
+      location = "self:O365-iOS-Unified-API-Connect.xcodeproj">
    </FileRef>
 </Workspace>

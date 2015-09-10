@@ -134,7 +134,7 @@
 			dependencies = (
 			);
 			name = "O365-iOS-Unified-API-Connect";
-			productName = "iOS-Convergence";
+			productName = "O365-iOS-Unified-API-Connect";
 			productReference = 96F8D60F1B603A6B00CD9F40 /* O365-iOS-Unified-API-Connect.app */;
 			productType = "com.apple.product-type.application";
 		};
