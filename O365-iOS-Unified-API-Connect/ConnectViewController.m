@@ -8,10 +8,11 @@
 #import <ADAuthenticationError.h>
 #import "AuthenticationManager.h"
 
-// You will set your application's clientId and redirect URI. 
+// You will set your application's clientId and redirect URI.
 NSString * const kRedirectUri = @"ENTER_REDIRECT_URI_HERE";
 NSString * const kClientId    = @"ENTER_CLIENT_ID_HERE";
 NSString * const kAuthority   = @"https://login.microsoftonline.com/common";
+
 @interface ConnectViewController()
 
 @property (nonatomic, strong) ADAuthenticationContext *adContext;

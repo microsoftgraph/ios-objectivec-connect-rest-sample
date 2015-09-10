@@ -56,7 +56,7 @@
                                 <rect key="frame" x="282" y="321" width="37" height="37"/>
                                 <color key="color" red="0.17254901959999999" green="0.17254901959999999" blue="0.17254901959999999" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
                             </activityIndicatorView>
-                            <textView clipsSubviews="YES" multipleTouchEnabled="YES" userInteractionEnabled="NO" contentMode="scaleToFill" text="Status text here" textAlignment="center" translatesAutoresizingMaskIntoConstraints="NO" id="z5E-O2-rsp">
+                            <textView clipsSubviews="YES" multipleTouchEnabled="YES" userInteractionEnabled="NO" contentMode="scaleToFill" text=" " textAlignment="center" translatesAutoresizingMaskIntoConstraints="NO" id="z5E-O2-rsp">
                                 <rect key="frame" x="160" y="366" width="280" height="130"/>
                                 <color key="backgroundColor" white="1" alpha="1" colorSpace="calibratedWhite"/>
                                 <constraints>
