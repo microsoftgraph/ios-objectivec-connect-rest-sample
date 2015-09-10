@@ -8,8 +8,7 @@
 #import <ADAuthenticationError.h>
 #import "AuthenticationManager.h"
 
-// You will set your application's clientId and redirect URI. You get
-// these when you register your application in the Microsoft Application Registration Portal (https://apps.dev.microsoft.com).
+// You will set your application's clientId and redirect URI. 
 NSString * const kRedirectUri = @"ENTER_REDIRECT_URI_HERE";
 NSString * const kClientId    = @"ENTER_CLIENT_ID_HERE";
 NSString * const kAuthority   = @"https://login.microsoftonline.com/common";
