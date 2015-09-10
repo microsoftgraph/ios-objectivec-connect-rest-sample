@@ -33,8 +33,7 @@ Connecting to Office 365 is the first step every iOS app must take to start work
 3. Open **O365-iOS-Unified-API-Connect.xcworkspace**
 4. Open **ConnectViewController.m**. You'll see that the **ClientID** and **RedirectUri** values can be added to the top of the file. Supply the necessary values here:
 
-        // You will set your application's clientId and redirect URI. You get
-        // these when you register your application in the Microsoft Application Registration Portal (https://apps.dev.microsoft.com).
+        // You will set your application's clientId and redirect URI. 
         NSString * const kRedirectUri = @"ENTER_REDIRECT_URI_HERE";
         NSString * const kClientId    = @"ENTER_CLIENT_ID_HERE";
         NSString * const kAuthority   = @"https://login.microsoftonline.com/common";
