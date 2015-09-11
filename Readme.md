@@ -56,8 +56,6 @@ Questions about Office 365 development in general should be posted to [Stack Ove
 * [Office 365 APIs platform overview](https://msdn.microsoft.com/office/office365/howto/platform-development-overview)
 * [Getting started with Office 365 APIs](http://dev.office.com/getting-started/office365apis)
 * [Office 365 unified API overview (preview)](https://msdn.microsoft.com/office/office365/HowTo/office-365-unified-api-overview)
-
-
 * [Using CocoaPods](https://guides.cocoapods.org/using/using-cocoapods.html)
 
 ## Copyright
