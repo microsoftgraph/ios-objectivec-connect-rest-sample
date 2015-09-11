@@ -17,12 +17,12 @@ Connecting to Office 365 is the first step every iOS app must take to start work
 
 
        
-## Opening the sample using Xcode
+## Running this sample in Xcode
 
 1. Clone this repository
 2. Use CocoaPods to import the Active Directory Authentication Library (ADAL) iOS dependency:
         
-	     pod 'ADALiOS', '~> 1.2.4'
+	     pod 'ADALiOS', '= 1.2.4'
 
  This sample app already contains a podfile that will get the ADAL components (pods) into  the project. Simply navigate to the project From **Terminal** and run: 
         
@@ -40,10 +40,9 @@ Connecting to Office 365 is the first step every iOS app must take to start work
     
     > Note: If you have don't have CLIENT_ID and REDIRECT_URI values, [add a native client application in Azure](https://msdn.microsoft.com/library/azure/dn132599.aspx#BKMK_Adding) and take note of the CLIENT\_ID and REDIRECT_URI.
 
-Run the sample after the above steps are complete.
+5. Run the sample.
 
 To learn more about the sample, visit our [understanding the code](https://github.com/OfficeDev/O365-iOS-Unified-API-Connect/wiki) wiki page.
-
 
 ## Questions and comments
 
