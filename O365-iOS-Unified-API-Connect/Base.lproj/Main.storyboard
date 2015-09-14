@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB" version="3.0" toolsVersion="7706" systemVersion="14E46" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" useTraitCollections="YES" initialViewController="aRC-Lx-LJp">
+<document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB" version="3.0" toolsVersion="7706" systemVersion="14F27" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" useTraitCollections="YES" initialViewController="aRC-Lx-LJp">
     <dependencies>
         <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="7703"/>
     </dependencies>
@@ -37,11 +37,6 @@
                                 <fontDescription key="fontDescription" type="system" pointSize="20"/>
                                 <nil key="highlightedColor"/>
                             </label>
-                            <textField opaque="NO" clipsSubviews="YES" userInteractionEnabled="NO" contentMode="scaleToFill" contentHorizontalAlignment="left" contentVerticalAlignment="center" borderStyle="roundedRect" minimumFontSize="17" translatesAutoresizingMaskIntoConstraints="NO" id="jq2-co-MFE">
-                                <rect key="frame" x="160" y="242" width="280" height="30"/>
-                                <fontDescription key="fontDescription" type="system" pointSize="14"/>
-                                <textInputTraits key="textInputTraits"/>
-                            </textField>
                             <textView clipsSubviews="YES" multipleTouchEnabled="YES" userInteractionEnabled="NO" contentMode="scaleToFill" text="You're now connected to Office 365. Tap the Send button below to send a message from your account using the Office 365 SDK." translatesAutoresizingMaskIntoConstraints="NO" id="BKr-86-Eu6">
                                 <rect key="frame" x="160" y="146" width="280" height="88"/>
                                 <color key="backgroundColor" white="1" alpha="1" colorSpace="calibratedWhite"/>
@@ -75,27 +70,39 @@
                                     <action selector="sendMailTapped:" destination="paT-v3-QGw" eventType="touchUpInside" id="VVd-bC-GyU"/>
                                 </connections>
                             </button>
+                            <textField opaque="NO" clipsSubviews="YES" contentMode="scaleToFill" contentHorizontalAlignment="left" contentVerticalAlignment="center" borderStyle="roundedRect" textAlignment="center" minimumFontSize="17" clearButtonMode="whileEditing" translatesAutoresizingMaskIntoConstraints="NO" id="OFC-oR-M4E">
+                                <rect key="frame" x="160" y="242" width="280" height="30"/>
+                                <fontDescription key="fontDescription" type="system" pointSize="14"/>
+                                <textInputTraits key="textInputTraits"/>
+                            </textField>
                         </subviews>
                         <color key="backgroundColor" white="1" alpha="1" colorSpace="custom" customColorSpace="calibratedWhite"/>
                         <constraints>
-                            <constraint firstItem="jq2-co-MFE" firstAttribute="top" secondItem="BKr-86-Eu6" secondAttribute="bottom" constant="8" id="84L-cr-TQV"/>
+                            <constraint firstItem="lXW-FV-e8H" firstAttribute="top" secondItem="8xf-uR-hr5" secondAttribute="bottom" constant="8" id="6vH-c6-bGC"/>
+                            <constraint firstItem="lXW-FV-e8H" firstAttribute="top" secondItem="8xf-uR-hr5" secondAttribute="bottom" constant="8" id="AHW-VH-dNc"/>
                             <constraint firstAttribute="centerX" secondItem="lXW-FV-e8H" secondAttribute="centerX" id="FSM-dA-CkE"/>
+                            <constraint firstItem="OFC-oR-M4E" firstAttribute="top" secondItem="BKr-86-Eu6" secondAttribute="bottom" constant="8" id="G5B-uv-S5M"/>
+                            <constraint firstItem="8xf-uR-hr5" firstAttribute="top" secondItem="OFC-oR-M4E" secondAttribute="bottom" constant="8" id="KVT-JO-LAg"/>
                             <constraint firstItem="BKr-86-Eu6" firstAttribute="leading" secondItem="z5E-O2-rsp" secondAttribute="leading" id="OHz-Ta-aeR"/>
                             <constraint firstItem="BKr-86-Eu6" firstAttribute="top" secondItem="VWL-hc-EaP" secondAttribute="bottom" constant="8" id="PTE-qP-JmC"/>
                             <constraint firstAttribute="centerX" secondItem="8xf-uR-hr5" secondAttribute="centerX" id="Reo-Ef-ChZ"/>
                             <constraint firstAttribute="centerX" secondItem="BKr-86-Eu6" secondAttribute="centerX" id="SeD-de-XX4"/>
                             <constraint firstItem="VWL-hc-EaP" firstAttribute="top" secondItem="wyy-hP-gcC" secondAttribute="bottom" constant="50" id="XoS-4b-Sg2"/>
-                            <constraint firstItem="BKr-86-Eu6" firstAttribute="leading" secondItem="jq2-co-MFE" secondAttribute="leading" id="ZNb-4T-MRt"/>
+                            <constraint firstItem="OFC-oR-M4E" firstAttribute="width" secondItem="BKr-86-Eu6" secondAttribute="width" id="ZVl-VJ-Uiv"/>
                             <constraint firstItem="BKr-86-Eu6" firstAttribute="top" secondItem="VWL-hc-EaP" secondAttribute="bottom" constant="8" id="ajK-p0-faM"/>
                             <constraint firstAttribute="centerX" secondItem="VWL-hc-EaP" secondAttribute="centerX" id="f2R-gp-P6S"/>
                             <constraint firstItem="BKr-86-Eu6" firstAttribute="trailing" secondItem="z5E-O2-rsp" secondAttribute="trailing" id="fKJ-1S-RUw"/>
-                            <constraint firstItem="8xf-uR-hr5" firstAttribute="top" secondItem="jq2-co-MFE" secondAttribute="bottom" constant="8" id="fk3-n8-4Zh"/>
                             <constraint firstItem="lXW-FV-e8H" firstAttribute="top" secondItem="8xf-uR-hr5" secondAttribute="bottom" constant="8" id="fwK-vm-R9v"/>
                             <constraint firstItem="VWL-hc-EaP" firstAttribute="top" secondItem="wyy-hP-gcC" secondAttribute="bottom" constant="50" id="fwX-mq-nc4"/>
                             <constraint firstItem="z5E-O2-rsp" firstAttribute="top" secondItem="lXW-FV-e8H" secondAttribute="bottom" constant="8" id="icn-bg-lHn"/>
-                            <constraint firstItem="jq2-co-MFE" firstAttribute="top" secondItem="BKr-86-Eu6" secondAttribute="bottom" constant="8" id="nED-z9-0BW"/>
-                            <constraint firstItem="BKr-86-Eu6" firstAttribute="trailing" secondItem="jq2-co-MFE" secondAttribute="trailing" id="oQP-hw-wXh"/>
+                            <constraint firstItem="OFC-oR-M4E" firstAttribute="centerX" secondItem="BKr-86-Eu6" secondAttribute="centerX" id="lEh-6n-Jen"/>
                         </constraints>
+                        <variation key="default">
+                            <mask key="constraints">
+                                <exclude reference="AHW-VH-dNc"/>
+                                <exclude reference="fwK-vm-R9v"/>
+                            </mask>
+                        </variation>
                     </view>
                     <navigationItem key="navigationItem" title="Unified API Connect" id="ftl-Ok-tXr">
                         <barButtonItem key="rightBarButtonItem" title="Disconnect" id="6vM-FB-6jh">
@@ -108,7 +115,7 @@
                     <connections>
                         <outlet property="activityIndicator" destination="lXW-FV-e8H" id="PDC-Nu-pob"/>
                         <outlet property="disconnectBarButtonItem" destination="6vM-FB-6jh" id="G2c-C5-KTb"/>
-                        <outlet property="emailTextField" destination="jq2-co-MFE" id="lEH-Pz-9fs"/>
+                        <outlet property="emailTextField" destination="OFC-oR-M4E" id="CcS-9A-3MY"/>
                         <outlet property="headerLabel" destination="VWL-hc-EaP" id="sJ8-1b-r4q"/>
                         <outlet property="mainContentTextView" destination="BKr-86-Eu6" id="xhg-jV-EJS"/>
                         <outlet property="sendMailButton" destination="8xf-uR-hr5" id="ggS-qh-mka"/>
@@ -131,8 +138,8 @@
                         <rect key="frame" x="0.0" y="0.0" width="600" height="600"/>
                         <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                         <subviews>
-                            <button opaque="NO" contentMode="scaleToFill" misplaced="YES" contentHorizontalAlignment="center" contentVerticalAlignment="center" buttonType="roundedRect" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="ZFh-2x-1dt">
-                                <rect key="frame" x="225" y="285" width="151" height="30"/>
+                            <button opaque="NO" contentMode="scaleToFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" buttonType="roundedRect" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="ZFh-2x-1dt">
+                                <rect key="frame" x="249" y="285" width="102" height="30"/>
                                 <state key="normal" title="Connect (Rest)">
                                     <color key="titleShadowColor" red="0.0" green="0.0" blue="0.0" alpha="1" colorSpace="calibratedRGB"/>
                                 </state>

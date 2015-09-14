@@ -18,13 +18,14 @@
                completion:(void (^)(ADAuthenticationError *error))completion;
 
 @property (nonatomic, strong) NSString *accessToken;
-@property (nonatomic, strong) NSString *emailAddress;
+@property (nonatomic, strong) NSString *givenName;
+@property (nonatomic, strong) NSString *familyName;
 @property (nonatomic, strong) NSString *userID;
 
-- (void) acquireAuthTokenWithResource:(NSString *)resourceID
-                             clientID:(NSString*)clientID
-                          redirectURI:(NSURL*)redirectURI
-                           Completion:(void (^)(ADAuthenticationError *error))completion;
+- (void)acquireAuthTokenWithResource:(NSString *)resourceID
+                            clientID:(NSString*)clientID
+                         redirectURI:(NSURL*)redirectURI
+                          Completion:(void (^)(ADAuthenticationError *error))completion;
 
 -(void) acquireAuthTokenCompletion:(void (^)(ADAuthenticationError *error))completion;
 

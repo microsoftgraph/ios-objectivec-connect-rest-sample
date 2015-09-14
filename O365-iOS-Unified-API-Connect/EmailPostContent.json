@@ -2,8 +2,8 @@
     "Message": {
         "Subject": "Mail received from the O365 iOS Unified API Connect Sample",
         "Body": {
-            "ContentType": "Text",
-            "Content": "You can send an email by making a POST request to /me/sendMail."
+            "ContentType": "<CONTENTTYPE>",
+            "Content": "<CONTENT>"
         },
         "ToRecipients": [
                          {

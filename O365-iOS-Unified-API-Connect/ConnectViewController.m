@@ -23,7 +23,7 @@ NSString * const kAuthority   = @"https://login.microsoftonline.com/common";
 
 @implementation ConnectViewController
 
-- (void) viewWillAppear:(BOOL)animated{
+- (void)viewWillAppear:(BOOL)animated{
     [super viewWillAppear:animated];
     [self showLoadingUI:NO];
 }
@@ -35,7 +35,7 @@ NSString * const kAuthority   = @"https://login.microsoftonline.com/common";
 }
 
 #pragma mark - Connect
-- (void) processConnect{
+- (void)processConnect{
     AuthenticationManager *authManager = [AuthenticationManager sharedInstance];
 
     [authManager initWithAuthority:kAuthority
@@ -74,7 +74,7 @@ NSString * const kAuthority   = @"https://login.microsoftonline.com/common";
 }
 
 #pragma mark - helper
-- (void) showLoadingUI:(BOOL)loading{
+- (void)showLoadingUI:(BOOL)loading{
     if(loading){
         [self.activityIndicator startAnimating];
         [self.connectButton setTitle:@"Connecting..." forState:UIControlStateNormal];

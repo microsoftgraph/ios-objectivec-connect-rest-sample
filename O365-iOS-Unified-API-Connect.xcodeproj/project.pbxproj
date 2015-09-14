@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		3BCE4D17FA3928B0CB8DA502 /* libPods.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A19CA5C2D3D6C3D7208D5245 /* libPods.a */; };
+		9636EF3A1BA75545003BD5FD /* EmailBody.html in Resources */ = {isa = PBXBuildFile; fileRef = 9636EF391BA75545003BD5FD /* EmailBody.html */; };
 		96D4A5E01B66EA040085E94B /* AuthenticationManager.m in Sources */ = {isa = PBXBuildFile; fileRef = 96D4A5DF1B66EA040085E94B /* AuthenticationManager.m */; };
 		96F8D6151B603A6B00CD9F40 /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = 96F8D6141B603A6B00CD9F40 /* main.m */; };
 		96F8D6181B603A6B00CD9F40 /* AppDelegate.m in Sources */ = {isa = PBXBuildFile; fileRef = 96F8D6171B603A6B00CD9F40 /* AppDelegate.m */; };
@@ -16,11 +17,12 @@
 		96F8D6231B603A6B00CD9F40 /* LaunchScreen.xib in Resources */ = {isa = PBXBuildFile; fileRef = 96F8D6211B603A6B00CD9F40 /* LaunchScreen.xib */; };
 		96F8D6401B603E1700CD9F40 /* SendMailViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 96F8D63F1B603E1700CD9F40 /* SendMailViewController.m */; };
 		96F8D6431B60502200CD9F40 /* ConnectViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 96F8D6421B60502200CD9F40 /* ConnectViewController.m */; };
-		96F8D6451B60516700CD9F40 /* EmailBody.json in Resources */ = {isa = PBXBuildFile; fileRef = 96F8D6441B60516700CD9F40 /* EmailBody.json */; };
+		96F8D6451B60516700CD9F40 /* EmailPostContent.json in Resources */ = {isa = PBXBuildFile; fileRef = 96F8D6441B60516700CD9F40 /* EmailPostContent.json */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		65A2EA18BA9F220814077DC7 /* Pods.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = Pods.debug.xcconfig; path = "Pods/Target Support Files/Pods/Pods.debug.xcconfig"; sourceTree = "<group>"; };
+		9636EF391BA75545003BD5FD /* EmailBody.html */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.html; path = EmailBody.html; sourceTree = "<group>"; };
 		96D4A5DE1B66EA040085E94B /* AuthenticationManager.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AuthenticationManager.h; sourceTree = "<group>"; };
 		96D4A5DF1B66EA040085E94B /* AuthenticationManager.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = AuthenticationManager.m; sourceTree = "<group>"; };
 		96F8D60F1B603A6B00CD9F40 /* O365-iOS-Unified-API-Connect.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "O365-iOS-Unified-API-Connect.app"; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -35,7 +37,7 @@
 		96F8D63F1B603E1700CD9F40 /* SendMailViewController.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = SendMailViewController.m; sourceTree = "<group>"; };
 		96F8D6411B60502200CD9F40 /* ConnectViewController.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = ConnectViewController.h; sourceTree = "<group>"; };
 		96F8D6421B60502200CD9F40 /* ConnectViewController.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = ConnectViewController.m; sourceTree = "<group>"; };
-		96F8D6441B60516700CD9F40 /* EmailBody.json */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.json; path = EmailBody.json; sourceTree = "<group>"; };
+		96F8D6441B60516700CD9F40 /* EmailPostContent.json */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.json; path = EmailPostContent.json; sourceTree = "<group>"; };
 		A19CA5C2D3D6C3D7208D5245 /* libPods.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libPods.a; sourceTree = BUILT_PRODUCTS_DIR; };
 		F48A3CBFCB11639F9F7CC119 /* Pods.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = Pods.release.xcconfig; path = "Pods/Target Support Files/Pods/Pods.release.xcconfig"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -81,7 +83,8 @@
 		96F8D6111B603A6B00CD9F40 /* O365-iOS-Unified-API-Connect */ = {
 			isa = PBXGroup;
 			children = (
-				96F8D6441B60516700CD9F40 /* EmailBody.json */,
+				96F8D6441B60516700CD9F40 /* EmailPostContent.json */,
+				9636EF391BA75545003BD5FD /* EmailBody.html */,
 				96F8D6161B603A6B00CD9F40 /* AppDelegate.h */,
 				96F8D6171B603A6B00CD9F40 /* AppDelegate.m */,
 				96F8D61C1B603A6B00CD9F40 /* Main.storyboard */,
@@ -176,9 +179,10 @@
 			buildActionMask = 2147483647;
 			files = (
 				96F8D61E1B603A6B00CD9F40 /* Main.storyboard in Resources */,
+				9636EF3A1BA75545003BD5FD /* EmailBody.html in Resources */,
 				96F8D6231B603A6B00CD9F40 /* LaunchScreen.xib in Resources */,
 				96F8D6201B603A6B00CD9F40 /* Images.xcassets in Resources */,
-				96F8D6451B60516700CD9F40 /* EmailBody.json in Resources */,
+				96F8D6451B60516700CD9F40 /* EmailPostContent.json in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -64,7 +64,7 @@
 #pragma mark - acquire token
 
 
--(void) acquireAuthTokenCompletion:(void (^)(ADAuthenticationError *error))completion{
+- (void)acquireAuthTokenCompletion:(void (^)(ADAuthenticationError *error))completion{
 
 
     [self acquireAuthTokenWithResource:self.resourceID
@@ -76,10 +76,10 @@
 }
 
 
-- (void) acquireAuthTokenWithResource:(NSString *)resourceID
-                             clientID:(NSString*)clientID
-                          redirectURI:(NSURL*)redirectURI
-                           Completion:(void (^)(ADAuthenticationError *error))completion{
+- (void)acquireAuthTokenWithResource:(NSString *)resourceID
+                            clientID:(NSString*)clientID
+                         redirectURI:(NSURL*)redirectURI
+                          Completion:(void (^)(ADAuthenticationError *error))completion{
     
     [self.context acquireTokenWithResource:resourceID
                                   clientId:clientID
@@ -87,14 +87,14 @@
                            completionBlock:^(ADAuthenticationResult *result) {
                                if (result.status !=AD_SUCCEEDED){
                                    completion(result.error);
-                                   
                                }
                                
                                else{
-                                   
                                    self.accessToken = result.accessToken;
-                                   self.emailAddress = result.tokenCacheStoreItem.userInformation.userId;
-                                   _userID = result.tokenCacheStoreItem.userInformation.userId;
+                                   self.familyName = result.tokenCacheStoreItem.userInformation.familyName;
+                                   self.givenName = result.tokenCacheStoreItem.userInformation.givenName;
+                                   
+                                   self.userID = result.tokenCacheStoreItem.userInformation.userId;
                                    completion(nil);
                                }
                            }];
@@ -104,7 +104,7 @@
 
 #pragma mark - clear credentials
  //Clears the ADAL token cache and the cookie cache.
-- (void) clearCredentials{
+- (void)clearCredentials{
 
     // Remove all the cookies from this application's sandbox. The authorization code is stored in the
     // cookies and ADAL will try to get to access tokens based on auth code in the cookie.
@@ -115,8 +115,6 @@
     
     [self.context.tokenCacheStore removeAllWithError:nil];
 }
-
-
 
 @end
 

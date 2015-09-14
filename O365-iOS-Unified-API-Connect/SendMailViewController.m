@@ -29,10 +29,9 @@
     [self.navigationItem setHidesBackButton:YES];
     
     // set user information
-    self.emailTextField.text = [[AuthenticationManager sharedInstance] emailAddress];
-
-    NSArray *parts = [[[AuthenticationManager sharedInstance] emailAddress] componentsSeparatedByString: @"@"];
-    self.headerLabel.text = [NSString stringWithFormat:@"Hi %@!", parts[0]];
+    AuthenticationManager *authManager = [AuthenticationManager sharedInstance];
+    self.emailTextField.text = [authManager userID];
+    self.headerLabel.text = [NSString stringWithFormat:@"Hi %@ %@", [authManager givenName], [authManager familyName]];
 }
 
 #pragma mark - Button interactions
@@ -48,29 +47,19 @@
 
 #pragma mark - Send mail
 - (void)sendMailREST{
+    [self.emailTextField resignFirstResponder];
     
     AuthenticationManager *authManager = [AuthenticationManager sharedInstance];
-    
-    // Constructing request to send mail to logged in user's mailbox
-    NSString *filePath = [[NSBundle mainBundle] pathForResource:@"EmailBody" ofType:@"json" ];
-    
-    // Replace email 
-    NSString *postString = [[NSString stringWithContentsOfFile:filePath encoding:NSUTF8StringEncoding error:nil]
-                            stringByReplacingOccurrencesOfString:@"<EMAIL>" withString:[[AuthenticationManager sharedInstance] emailAddress]];
-    
-    NSData *postData = [postString dataUsingEncoding:NSUTF8StringEncoding allowLossyConversion:YES];
+    NSData *postData = [self mailContent];
     
     NSMutableURLRequest *request = [[NSMutableURLRequest alloc] initWithURL:[NSURL URLWithString:@"https://graph.microsoft.com/beta/me/sendMail"]];
 
     [request setHTTPMethod:@"POST"];
-    
-    [request setValue:@"application/json;charset=utf-8" forHTTPHeaderField:@"Content-Type"];
+    [request setValue:@"application/json" forHTTPHeaderField:@"Content-Type"];
     [request setValue:@"application/json, text/plain, */*" forHTTPHeaderField:@"Accept"];
     
     NSString *authorization = [NSString stringWithFormat:@"Bearer %@", authManager.accessToken];
     [request setValue:authorization forHTTPHeaderField:@"Authorization"];
-    
-    
     [request setHTTPBody:postData];
 
     NSURLConnection *conn = [[NSURLConnection alloc] initWithRequest:request delegate:self];
@@ -85,6 +74,31 @@
 
 }
 
+- (NSData *)mailContent{
+    
+    NSString *htmlContentPath = [[NSBundle mainBundle] pathForResource:@"EmailBody" ofType:@"html"];
+    NSString *htmlContentString = [[NSString stringWithContentsOfFile:htmlContentPath encoding:NSUTF8StringEncoding error:nil] stringByReplacingOccurrencesOfString:@"\"" withString:@"\\\""];
+    
+    NSString *jsonContentPath = [[NSBundle mainBundle] pathForResource:@"EmailPostContent" ofType:@"json"];
+    NSMutableString *jsonContentString = [NSMutableString stringWithContentsOfFile:jsonContentPath encoding:NSUTF8StringEncoding error:nil];
+
+    [jsonContentString replaceOccurrencesOfString:@"<EMAIL>"
+                                       withString:self.emailTextField.text
+                                          options:0 range:(NSRange){0, [jsonContentString length]}];
+    
+
+    [jsonContentString replaceOccurrencesOfString:@"<CONTENTTYPE>"
+                                       withString:@"HTML"
+                                          options:0 range:(NSRange){0, [jsonContentString length]}];
+    
+    [jsonContentString replaceOccurrencesOfString:@"<CONTENT>"
+                                       withString:htmlContentString
+                                          options:0 range:(NSRange){0, [jsonContentString length]}];
+
+    return [jsonContentString dataUsingEncoding:NSUTF8StringEncoding];
+}
+
+
 #pragma mark - NSURLConnection delegates
 - (void)connection:(NSURLConnection *)connection didReceiveResponse:(NSURLResponse *)response{
     [self showSendingUI:NO];
@@ -95,10 +109,20 @@
             self.statusTextView.text = @"Check your inbox, you have a new message. :)";
     }
     else{
+        NSLog(@"Response - %@", response);
         self.statusTextView.text = @"The email could not be sent. Check the log for errors.";
     }
 }
 
+- (void)connection:(NSURLConnection *)connection didReceiveData:(NSData *)data{
+    NSString *responseString = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
+    NSLog(@"Received Data - %@", responseString);
+}
+
+
+- (void)connection:(NSURLConnection *)connection didFailWithError:(NSError *)error{
+    NSLog(@"Connection Failure - %@", error.localizedDescription);
+}
 #pragma mark - Helpers
 - (void)showSendingUI:(BOOL)sending{
     if(sending){
