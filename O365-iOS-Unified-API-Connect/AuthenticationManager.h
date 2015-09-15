@@ -8,7 +8,6 @@
 
 @interface AuthenticationManager : NSObject
 
-
 + (AuthenticationManager*)sharedInstance;
 
 - (void)initWithAuthority:(NSString*)authority

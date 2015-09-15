@@ -47,21 +47,17 @@ NSString * const kAuthority   = @"https://login.microsoftonline.com/common";
                                 [self handleADAuthenticationError:error];
                             }
                             else{
-                                
                                 [authManager acquireAuthTokenCompletion:^(ADAuthenticationError *acquireTokenError) {
                                     if(acquireTokenError){
-                                        [self handleADAuthenticationError:acquireTokenError];
+                                          [self handleADAuthenticationError:acquireTokenError];
                                     }
                                     else{
                                         [[NSOperationQueue mainQueue] addOperationWithBlock:^{
                                              [self performSegueWithIdentifier:@"showSendMail" sender:nil];
                                             
                                         }];
-                                       
                                     }
                                 }];
-                                
-                                
                             }
                         }];
 }

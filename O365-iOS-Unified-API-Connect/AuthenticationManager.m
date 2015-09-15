@@ -8,7 +8,6 @@
 
 @interface AuthenticationManager()
 
-
 @property (nonatomic, strong) NSString *authority;
 @property (nonatomic, strong) NSString *clientID;
 @property (nonatomic, strong) NSString *redirectUri;
@@ -21,7 +20,6 @@
 @implementation AuthenticationManager
 
 #pragma mark - singleton
-// Use a single authentication manager for the application.
 + (AuthenticationManager *)sharedInstance
 {
     static AuthenticationManager *sharedInstance;
@@ -58,29 +56,19 @@
     }
 }
 
-
-
-
 #pragma mark - acquire token
-
-
 - (void)acquireAuthTokenCompletion:(void (^)(ADAuthenticationError *error))completion{
-
-
     [self acquireAuthTokenWithResource:self.resourceID
                               clientID:self.clientID
                            redirectURI: [NSURL URLWithString:self.redirectUri]
                             Completion:^(ADAuthenticationError *error) {
                                 completion(error);}];
-    
 }
-
 
 - (void)acquireAuthTokenWithResource:(NSString *)resourceID
                             clientID:(NSString*)clientID
                          redirectURI:(NSURL*)redirectURI
                           Completion:(void (^)(ADAuthenticationError *error))completion{
-    
     [self.context acquireTokenWithResource:resourceID
                                   clientId:clientID
                                redirectUri:redirectURI
@@ -99,8 +87,6 @@
                                }
                            }];
 }
-
-
 
 #pragma mark - clear credentials
  //Clears the ADAL token cache and the cookie cache.

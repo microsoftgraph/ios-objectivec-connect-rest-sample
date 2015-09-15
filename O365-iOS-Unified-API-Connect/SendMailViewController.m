@@ -71,11 +71,9 @@
     }
     
     [conn start];
-
 }
 
 - (NSData *)mailContent{
-    
     NSString *htmlContentPath = [[NSBundle mainBundle] pathForResource:@"EmailBody" ofType:@"html"];
     NSString *htmlContentString = [[NSString stringWithContentsOfFile:htmlContentPath encoding:NSUTF8StringEncoding error:nil] stringByReplacingOccurrencesOfString:@"\"" withString:@"\\\""];
     
@@ -98,7 +96,6 @@
     return [jsonContentString dataUsingEncoding:NSUTF8StringEncoding];
 }
 
-
 #pragma mark - NSURLConnection delegates
 - (void)connection:(NSURLConnection *)connection didReceiveResponse:(NSURLResponse *)response{
     [self showSendingUI:NO];
@@ -119,10 +116,10 @@
     NSLog(@"Received Data - %@", responseString);
 }
 
-
 - (void)connection:(NSURLConnection *)connection didFailWithError:(NSError *)error{
     NSLog(@"Connection Failure - %@", error.localizedDescription);
 }
+
 #pragma mark - Helpers
 - (void)showSendingUI:(BOOL)sending{
     if(sending){
