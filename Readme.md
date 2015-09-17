@@ -37,6 +37,7 @@ Connecting to Office 365 is the first step every iOS app must take to start work
         NSString * const kRedirectUri = @"ENTER_REDIRECT_URI_HERE";
         NSString * const kClientId    = @"ENTER_CLIENT_ID_HERE";
         NSString * const kAuthority   = @"https://login.microsoftonline.com/common";
+        NSString * const kResourceId  = @"https://graph.microsoft.com";
     
     > Note: If you have don't have CLIENT_ID and REDIRECT_URI values, [add a native client application in Azure](https://msdn.microsoft.com/library/azure/dn132599.aspx#BKMK_Adding) and take note of the CLIENT\_ID and REDIRECT_URI.
 

@@ -23,7 +23,7 @@
 
 @implementation SendMailViewController
 
-- (void)viewDidLoad{
+- (void)viewDidLoad {
     [super viewDidLoad];
     
     [self.navigationItem setHidesBackButton:YES];
@@ -32,21 +32,23 @@
     AuthenticationManager *authManager = [AuthenticationManager sharedInstance];
     self.emailTextField.text = [authManager userID];
     self.headerLabel.text = [NSString stringWithFormat:@"Hi %@ %@", [authManager givenName], [authManager familyName]];
+    
+    self.statusTextView.text = @"";
 }
 
 #pragma mark - Button interactions
-- (IBAction)sendMailTapped:(id)sender{
+- (IBAction)sendMailTapped:(id)sender {
     [self showSendingUI:YES];
     [self sendMailREST];
 }
 
-- (IBAction)disconnectTapped:(id)sender{
+- (IBAction)disconnectTapped:(id)sender {
     [[AuthenticationManager sharedInstance] clearCredentials];
     [self.navigationController popViewControllerAnimated:YES];
 }
 
 #pragma mark - Send mail
-- (void)sendMailREST{
+- (void)sendMailREST {
     [self.emailTextField resignFirstResponder];
     
     AuthenticationManager *authManager = [AuthenticationManager sharedInstance];
@@ -73,7 +75,7 @@
     [conn start];
 }
 
-- (NSData *)mailContent{
+- (NSData *)mailContent {
     NSString *htmlContentPath = [[NSBundle mainBundle] pathForResource:@"EmailBody" ofType:@"html"];
     NSString *htmlContentString = [[NSString stringWithContentsOfFile:htmlContentPath encoding:NSUTF8StringEncoding error:nil] stringByReplacingOccurrencesOfString:@"\"" withString:@"\\\""];
     
@@ -97,7 +99,7 @@
 }
 
 #pragma mark - NSURLConnection delegates
-- (void)connection:(NSURLConnection *)connection didReceiveResponse:(NSURLResponse *)response{
+- (void)connection:(NSURLConnection *)connection didReceiveResponse:(NSURLResponse *)response {
     [self showSendingUI:NO];
     
     NSHTTPURLResponse *httpResponse = (NSHTTPURLResponse *) response;
@@ -111,17 +113,17 @@
     }
 }
 
-- (void)connection:(NSURLConnection *)connection didReceiveData:(NSData *)data{
+- (void)connection:(NSURLConnection *)connection didReceiveData:(NSData *)data {
     NSString *responseString = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
     NSLog(@"Received Data - %@", responseString);
 }
 
-- (void)connection:(NSURLConnection *)connection didFailWithError:(NSError *)error{
+- (void)connection:(NSURLConnection *)connection didFailWithError:(NSError *)error {
     NSLog(@"Connection Failure - %@", error.localizedDescription);
 }
 
 #pragma mark - Helpers
-- (void)showSendingUI:(BOOL)sending{
+- (void)showSendingUI:(BOOL)sending { 
     if(sending){
         [self.activityIndicator startAnimating];
         [self.sendMailButton setTitle:@"Sending..." forState:UIControlStateNormal];

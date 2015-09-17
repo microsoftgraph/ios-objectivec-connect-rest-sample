@@ -38,7 +38,8 @@
                  clientId:(NSString*)clientId
               redirectURI:(NSString*)redirectURI
                resourceID:(NSString*)resourceID
-               completion:(void (^)(ADAuthenticationError *error))completion{
+               completion:(void (^)(ADAuthenticationError *error))completion
+{
     ADAuthenticationError *error;
     _context = [ADAuthenticationContext authenticationContextWithAuthority:authority error:&error];
     
@@ -57,27 +58,33 @@
 }
 
 #pragma mark - acquire token
-- (void)acquireAuthTokenCompletion:(void (^)(ADAuthenticationError *error))completion{
+- (void)acquireAuthTokenCompletion:(void (^)(ADAuthenticationError *error))completion {
     [self acquireAuthTokenWithResource:self.resourceID
                               clientID:self.clientID
                            redirectURI: [NSURL URLWithString:self.redirectUri]
-                            Completion:^(ADAuthenticationError *error) {
+                            completion:^(ADAuthenticationError *error) {
                                 completion(error);}];
 }
 
 - (void)acquireAuthTokenWithResource:(NSString *)resourceID
                             clientID:(NSString*)clientID
                          redirectURI:(NSURL*)redirectURI
-                          Completion:(void (^)(ADAuthenticationError *error))completion{
+                          completion:(void (^)(ADAuthenticationError *error))completion {
+    
+    NSLog(@"acquireAuthTokenWithResource");
     [self.context acquireTokenWithResource:resourceID
                                   clientId:clientID
                                redirectUri:redirectURI
                            completionBlock:^(ADAuthenticationResult *result) {
+                               NSLog(@"Completion");
+                               
                                if (result.status !=AD_SUCCEEDED){
+                                   NSLog(@"error");
                                    completion(result.error);
                                }
                                
                                else{
+                                   NSLog(@"complete!");
                                    self.accessToken = result.accessToken;
                                    self.familyName = result.tokenCacheStoreItem.userInformation.familyName;
                                    self.givenName = result.tokenCacheStoreItem.userInformation.givenName;
@@ -90,7 +97,7 @@
 
 #pragma mark - clear credentials
  //Clears the ADAL token cache and the cookie cache.
-- (void)clearCredentials{
+- (void)clearCredentials {
 
     // Remove all the cookies from this application's sandbox. The authorization code is stored in the
     // cookies and ADAL will try to get to access tokens based on auth code in the cookie.

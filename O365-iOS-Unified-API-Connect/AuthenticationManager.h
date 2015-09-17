@@ -24,7 +24,7 @@
 - (void)acquireAuthTokenWithResource:(NSString *)resourceID
                             clientID:(NSString*)clientID
                          redirectURI:(NSURL*)redirectURI
-                          Completion:(void (^)(ADAuthenticationError *error))completion;
+                          completion:(void (^)(ADAuthenticationError *error))completion;
 
 -(void) acquireAuthTokenCompletion:(void (^)(ADAuthenticationError *error))completion;
 

@@ -12,6 +12,7 @@
 NSString * const kRedirectUri = @"ENTER_REDIRECT_URI_HERE";
 NSString * const kClientId    = @"ENTER_CLIENT_ID_HERE";
 NSString * const kAuthority   = @"https://login.microsoftonline.com/common";
+NSString * const kResourceId  = @"https://graph.microsoft.com";
 
 @interface ConnectViewController()
 
@@ -23,9 +24,14 @@ NSString * const kAuthority   = @"https://login.microsoftonline.com/common";
 
 @implementation ConnectViewController
 
-- (void)viewWillAppear:(BOOL)animated{
+- (void)viewWillAppear:(BOOL)animated {
     [super viewWillAppear:animated];
-    [self showLoadingUI:NO];
+}
+
+- (void)viewWillDisappear:(BOOL)animated {
+    NSLog(@"viewWillDissap");
+    [super viewWillDisappear:animated];
+    
 }
 
 #pragma mark - button interaction (Connect)
@@ -35,7 +41,7 @@ NSString * const kAuthority   = @"https://login.microsoftonline.com/common";
 }
 
 #pragma mark - Connect
-- (void)processConnect{
+- (void)processConnect {
     AuthenticationManager *authManager = [AuthenticationManager sharedInstance];
 
     [authManager initWithAuthority:kAuthority
@@ -44,6 +50,7 @@ NSString * const kAuthority   = @"https://login.microsoftonline.com/common";
                         resourceID:@"https://graph.microsoft.com"
                         completion:^(ADAuthenticationError *error) {
                             if(error){
+                                [self showLoadingUI:NO];
                                 [self handleADAuthenticationError:error];
                             }
                             else{
@@ -52,9 +59,11 @@ NSString * const kAuthority   = @"https://login.microsoftonline.com/common";
                                           [self handleADAuthenticationError:acquireTokenError];
                                     }
                                     else{
+                                        NSLog(@"%@", [authManager userID]);
+                                        
                                         [[NSOperationQueue mainQueue] addOperationWithBlock:^{
-                                             [self performSegueWithIdentifier:@"showSendMail" sender:nil];
-                                            
+                                            [self performSegueWithIdentifier:@"showSendMail" sender:nil];
+                                            [self showLoadingUI:NO];
                                         }];
                                     }
                                 }];
@@ -63,14 +72,15 @@ NSString * const kAuthority   = @"https://login.microsoftonline.com/common";
 }
 
 #pragma mark - Navigation
-- (void)prepareForSegue:(UIStoryboardSegue *)segue sender:(id)sender{
+- (void)prepareForSegue:(UIStoryboardSegue *)segue sender:(id)sender {
+    NSLog(@"prepare for segue");
     if([segue.identifier isEqualToString:@"showSendMail"]){
         ;
     }
 }
 
 #pragma mark - helper
-- (void)showLoadingUI:(BOOL)loading{
+- (void)showLoadingUI:(BOOL)loading {
     if(loading){
         [self.activityIndicator startAnimating];
         [self.connectButton setTitle:@"Connecting..." forState:UIControlStateNormal];
@@ -83,9 +93,8 @@ NSString * const kAuthority   = @"https://login.microsoftonline.com/common";
     }
 }
 
-- (void)handleADAuthenticationError:(ADAuthenticationError *)error{
-    [self showLoadingUI:NO];
-    
+- (void)handleADAuthenticationError:(ADAuthenticationError *)error {
+
     NSLog(@"Error\nProtocol Code %@\nDescription %@", error.protocolCode, error.description);
     UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Error"
                                                                    message:@"Please see the log for more details"
