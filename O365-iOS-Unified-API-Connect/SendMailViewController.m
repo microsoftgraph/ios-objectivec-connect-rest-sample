@@ -31,7 +31,9 @@
     // set user information
     AuthenticationManager *authManager = [AuthenticationManager sharedInstance];
     self.emailTextField.text = [authManager userID];
-    self.headerLabel.text = [NSString stringWithFormat:@"Hi %@ %@", [authManager givenName], [authManager familyName]];
+    
+    NSArray *parts = [[[AuthenticationManager sharedInstance] userID] componentsSeparatedByString: @"@"];
+    self.headerLabel.text = [NSString stringWithFormat:@"Hi %@!", parts[0]];
     
     self.statusTextView.text = @"";
 }
