@@ -86,9 +86,6 @@
                                else{
                                    NSLog(@"complete!");
                                    self.accessToken = result.accessToken;
-                                   self.familyName = result.tokenCacheStoreItem.userInformation.familyName;
-                                   self.givenName = result.tokenCacheStoreItem.userInformation.givenName;
-                                   
                                    self.userID = result.tokenCacheStoreItem.userInformation.userId;
                                    completion(nil);
                                }
