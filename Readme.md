@@ -2,6 +2,7 @@
 
 Connecting to Office 365 is the first step every iOS app must take to start working with Office 365 services and data. This sample shows how to connect and then call one API through the unified API.
 
+![O365-iOS-Unified-API-Connect](https://github.com/OfficeDev/O365-iOS-Unified-API-Connect/blob/master/readme-images/iOSConnect.png)
  
 ## Prerequisites
 * [Xcode](https://developer.apple.com/xcode/downloads/) from Apple
