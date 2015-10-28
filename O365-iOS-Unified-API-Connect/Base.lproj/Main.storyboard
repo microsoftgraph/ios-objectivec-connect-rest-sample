@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB" version="3.0" toolsVersion="8191" systemVersion="14F27" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" useTraitCollections="YES" initialViewController="aRC-Lx-LJp">
+<document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB" version="3.0" toolsVersion="9059" systemVersion="15A284" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" useTraitCollections="YES" initialViewController="aRC-Lx-LJp">
     <dependencies>
         <deployment identifier="iOS"/>
-        <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="8154"/>
+        <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="9049"/>
     </dependencies>
     <scenes>
         <!--Navigation Controller-->
@@ -12,6 +12,7 @@
                     <navigationBar key="navigationBar" contentMode="scaleToFill" id="na7-WG-sde">
                         <rect key="frame" x="0.0" y="0.0" width="320" height="44"/>
                         <autoresizingMask key="autoresizingMask"/>
+                        <animations/>
                     </navigationBar>
                     <connections>
                         <segue destination="0Cx-Pl-cgR" kind="relationship" relationship="rootViewController" id="diN-S4-bSc"/>
@@ -24,7 +25,6 @@
         <!--Unified API Connect-->
         <scene sceneID="lNc-s6-iQd">
             <objects>
-                <placeholder placeholderIdentifier="IBFirstResponder" id="pts-vq-7xP" userLabel="First Responder" sceneMemberID="firstResponder"/>
                 <viewController id="jF3-fd-yfL" customClass="SendMailViewController" sceneMemberID="viewController">
                     <layoutGuides>
                         <viewControllerLayoutGuide type="top" id="ESY-zY-ujO"/>
@@ -36,12 +36,14 @@
                         <subviews>
                             <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="Hi User" textAlignment="natural" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="uEF-eb-4rm">
                                 <rect key="frame" x="272" y="109" width="57" height="21"/>
+                                <animations/>
                                 <fontDescription key="fontDescription" type="system" pointSize="17"/>
                                 <color key="textColor" cocoaTouchSystemColor="darkTextColor"/>
                                 <nil key="highlightedColor"/>
                             </label>
                             <textView clipsSubviews="YES" multipleTouchEnabled="YES" contentMode="scaleToFill" text="You're now connected to Office 365. Tap the Send button below to send a message from your account using the Office 365 SDK." textAlignment="center" translatesAutoresizingMaskIntoConstraints="NO" id="n1O-x6-vF2">
                                 <rect key="frame" x="150" y="150" width="300" height="76"/>
+                                <animations/>
                                 <constraints>
                                     <constraint firstAttribute="height" constant="76" id="Shy-z4-2hL"/>
                                     <constraint firstAttribute="width" constant="300" id="mk4-3E-0IW"/>
@@ -51,11 +53,13 @@
                             </textView>
                             <textField opaque="NO" clipsSubviews="YES" contentMode="scaleToFill" contentHorizontalAlignment="left" contentVerticalAlignment="center" borderStyle="roundedRect" textAlignment="natural" minimumFontSize="17" clearButtonMode="always" translatesAutoresizingMaskIntoConstraints="NO" id="nXc-sn-2gy">
                                 <rect key="frame" x="150" y="234" width="300" height="30"/>
+                                <animations/>
                                 <fontDescription key="fontDescription" type="system" pointSize="14"/>
                                 <textInputTraits key="textInputTraits"/>
                             </textField>
                             <button opaque="NO" contentMode="scaleToFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" buttonType="roundedRect" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="aBd-HJ-pRJ">
                                 <rect key="frame" x="282" y="296" width="36" height="30"/>
+                                <animations/>
                                 <state key="normal" title="Send"/>
                                 <connections>
                                     <action selector="sendMailTapped:" destination="jF3-fd-yfL" eventType="touchUpInside" id="h9x-Fl-fgK"/>
@@ -63,16 +67,19 @@
                             </button>
                             <activityIndicatorView hidden="YES" opaque="NO" contentMode="scaleToFill" horizontalHuggingPriority="750" verticalHuggingPriority="750" hidesWhenStopped="YES" style="whiteLarge" translatesAutoresizingMaskIntoConstraints="NO" id="7EM-kO-jES">
                                 <rect key="frame" x="282" y="325" width="37" height="37"/>
+                                <animations/>
                                 <color key="color" red="0.10332039696941231" green="0.49908475522666196" blue="1" alpha="1" colorSpace="calibratedRGB"/>
                             </activityIndicatorView>
                             <textView clipsSubviews="YES" multipleTouchEnabled="YES" userInteractionEnabled="NO" contentMode="scaleToFill" textAlignment="center" translatesAutoresizingMaskIntoConstraints="NO" id="Cjw-ie-G7z">
                                 <rect key="frame" x="150" y="380" width="300" height="128"/>
+                                <animations/>
                                 <string key="text">Status text
 This is where the status is displayed</string>
                                 <fontDescription key="fontDescription" type="system" pointSize="14"/>
                                 <textInputTraits key="textInputTraits" autocapitalizationType="sentences"/>
                             </textView>
                         </subviews>
+                        <animations/>
                         <color key="backgroundColor" white="1" alpha="1" colorSpace="calibratedWhite"/>
                         <constraints>
                             <constraint firstItem="aBd-HJ-pRJ" firstAttribute="centerX" secondItem="nXc-sn-2gy" secondAttribute="centerX" id="1x5-bz-w4B"/>
@@ -107,6 +114,7 @@ This is where the status is displayed</string>
                         <outlet property="statusTextView" destination="Cjw-ie-G7z" id="zUN-vT-d1e"/>
                     </connections>
                 </viewController>
+                <placeholder placeholderIdentifier="IBFirstResponder" id="pts-vq-7xP" userLabel="First Responder" sceneMemberID="firstResponder"/>
             </objects>
             <point key="canvasLocation" x="1080" y="-154"/>
         </scene>
@@ -124,6 +132,7 @@ This is where the status is displayed</string>
                         <subviews>
                             <button opaque="NO" contentMode="scaleToFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" buttonType="roundedRect" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="ZFh-2x-1dt">
                                 <rect key="frame" x="249" y="285" width="103" height="30"/>
+                                <animations/>
                                 <state key="normal" title="Connect (Rest)">
                                     <color key="titleShadowColor" red="0.0" green="0.0" blue="0.0" alpha="1" colorSpace="calibratedRGB"/>
                                 </state>
@@ -133,9 +142,11 @@ This is where the status is displayed</string>
                             </button>
                             <activityIndicatorView hidden="YES" opaque="NO" contentMode="scaleToFill" horizontalHuggingPriority="750" verticalHuggingPriority="750" hidesWhenStopped="YES" style="whiteLarge" translatesAutoresizingMaskIntoConstraints="NO" id="Gwc-Xn-eVq">
                                 <rect key="frame" x="282" y="225" width="37" height="37"/>
+                                <animations/>
                                 <color key="color" red="0.10332039696941231" green="0.49908475522666196" blue="1" alpha="1" colorSpace="calibratedRGB"/>
                             </activityIndicatorView>
                         </subviews>
+                        <animations/>
                         <color key="backgroundColor" white="1" alpha="1" colorSpace="calibratedWhite"/>
                         <constraints>
                             <constraint firstItem="ZFh-2x-1dt" firstAttribute="top" secondItem="Gwc-Xn-eVq" secondAttribute="bottom" constant="23" id="LuB-5W-PKQ"/>
