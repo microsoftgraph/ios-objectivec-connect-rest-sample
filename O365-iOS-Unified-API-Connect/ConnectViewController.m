@@ -9,8 +9,8 @@
 #import "AuthenticationManager.h"
 
 // You will set your application's clientId and redirect URI.
-NSString * const kRedirectUri = @"ENTER_REDIRECT_URI_HERE";
-NSString * const kClientId    = @"ENTER_CLIENT_ID_HERE";
+NSString * const kRedirectUri = @"ENTER_YOUR_REDIRECT_URI";
+NSString * const kClientId    = @"ENTER_YOUR_CLIENT_ID";
 NSString * const kAuthority   = @"https://login.microsoftonline.com/common";
 NSString * const kResourceId  = @"https://graph.microsoft.com";
 
