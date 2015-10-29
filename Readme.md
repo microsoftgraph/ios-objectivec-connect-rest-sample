@@ -35,8 +35,8 @@ Connecting to Office 365 is the first step every iOS app must take to start work
 4. Open **ConnectViewController.m**. You'll see that the **ClientID** and **RedirectUri** values can be added to the top of the file. Supply the necessary values here:
 
         // You will set your application's clientId and redirect URI. 
-        NSString * const kRedirectUri = @"ENTER_REDIRECT_URI_HERE";
-        NSString * const kClientId    = @"ENTER_CLIENT_ID_HERE";
+        NSString * const kRedirectUri = @"ENTER_YOUR_REDIRECT_URI";
+        NSString * const kClientId    = @"ENTER_YOUR_CLIENT_ID";
         NSString * const kAuthority   = @"https://login.microsoftonline.com/common";
         NSString * const kResourceId  = @"https://graph.microsoft.com";
     
