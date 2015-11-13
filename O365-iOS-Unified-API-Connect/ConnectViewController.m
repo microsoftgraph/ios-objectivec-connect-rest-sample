@@ -9,8 +9,8 @@
 #import "AuthenticationManager.h"
 
 // You will set your application's clientId and redirect URI.
-NSString * const kRedirectUri = @"ENTER_REDIRECT_URI_HERE";
-NSString * const kClientId    = @"ENTER_CLIENT_ID_HERE";
+NSString * const kRedirectUri = @"ENTER_YOUR_REDIRECT_URI";
+NSString * const kClientId    = @"ENTER_YOUR_CLIENT_ID";
 NSString * const kAuthority   = @"https://login.microsoftonline.com/common";
 NSString * const kResourceId  = @"https://graph.microsoft.com";
 
@@ -29,7 +29,6 @@ NSString * const kResourceId  = @"https://graph.microsoft.com";
 }
 
 - (void)viewWillDisappear:(BOOL)animated {
-    NSLog(@"viewWillDissap");
     [super viewWillDisappear:animated];
     
 }
@@ -73,7 +72,6 @@ NSString * const kResourceId  = @"https://graph.microsoft.com";
 
 #pragma mark - Navigation
 - (void)prepareForSegue:(UIStoryboardSegue *)segue sender:(id)sender {
-    NSLog(@"prepare for segue");
     if([segue.identifier isEqualToString:@"showSendMail"]){
         ;
     }
@@ -94,7 +92,6 @@ NSString * const kResourceId  = @"https://graph.microsoft.com";
 }
 
 - (void)handleADAuthenticationError:(ADAuthenticationError *)error {
-
     NSLog(@"Error\nProtocol Code %@\nDescription %@", error.protocolCode, error.description);
     UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Error"
                                                                    message:@"Please see the log for more details"
