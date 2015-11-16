@@ -48,6 +48,7 @@ NSString * const kResourceId  = @"https://graph.microsoft.com";
                        redirectURI:kRedirectUri
                         resourceID:@"https://graph.microsoft.com"
                         completion:^(ADAuthenticationError *error) {
+
                             if(error){
                                 [self showLoadingUI:NO];
                                 [self handleADAuthenticationError:error];
@@ -55,7 +56,8 @@ NSString * const kResourceId  = @"https://graph.microsoft.com";
                             else{
                                 [authManager acquireAuthTokenCompletion:^(ADAuthenticationError *acquireTokenError) {
                                     if(acquireTokenError){
-                                          [self handleADAuthenticationError:acquireTokenError];
+                                        [self showLoadingUI:NO];
+                                        [self handleADAuthenticationError:acquireTokenError];
                                     }
                                     else{
                                         NSLog(@"%@", [authManager userID]);
