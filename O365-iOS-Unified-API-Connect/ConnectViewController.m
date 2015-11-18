@@ -29,7 +29,6 @@ NSString * const kResourceId  = @"https://graph.microsoft.com";
 }
 
 - (void)viewWillDisappear:(BOOL)animated {
-    NSLog(@"viewWillDissap");
     [super viewWillDisappear:animated];
     
 }
@@ -49,6 +48,7 @@ NSString * const kResourceId  = @"https://graph.microsoft.com";
                        redirectURI:kRedirectUri
                         resourceID:@"https://graph.microsoft.com"
                         completion:^(ADAuthenticationError *error) {
+
                             if(error){
                                 [self showLoadingUI:NO];
                                 [self handleADAuthenticationError:error];
@@ -56,7 +56,8 @@ NSString * const kResourceId  = @"https://graph.microsoft.com";
                             else{
                                 [authManager acquireAuthTokenCompletion:^(ADAuthenticationError *acquireTokenError) {
                                     if(acquireTokenError){
-                                          [self handleADAuthenticationError:acquireTokenError];
+                                        [self showLoadingUI:NO];
+                                        [self handleADAuthenticationError:acquireTokenError];
                                     }
                                     else{
                                         NSLog(@"%@", [authManager userID]);
@@ -73,7 +74,6 @@ NSString * const kResourceId  = @"https://graph.microsoft.com";
 
 #pragma mark - Navigation
 - (void)prepareForSegue:(UIStoryboardSegue *)segue sender:(id)sender {
-    NSLog(@"prepare for segue");
     if([segue.identifier isEqualToString:@"showSendMail"]){
         ;
     }
@@ -94,7 +94,6 @@ NSString * const kResourceId  = @"https://graph.microsoft.com";
 }
 
 - (void)handleADAuthenticationError:(ADAuthenticationError *)error {
-
     NSLog(@"Error\nProtocol Code %@\nDescription %@", error.protocolCode, error.description);
     UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Error"
                                                                    message:@"Please see the log for more details"
