@@ -1,0 +1,15 @@
+language: objective-c
+before_install:
+- gem install cocoapods
+- brew update
+- if brew outdated | grep -qx xctool; then brew upgrade xctool; fi
+script:
+- xctool -workspace O365-iOS-Unified-API-Connect.xcworkspace -scheme O365-iOS-Unified-API-Connect -sdk iphonesimulator
+notifications:
+  slack:
+    secure: DBmG6F56yrQmLX7EDaht5qmCJbOOQNQT65IossyWRzuepDEul1qbZwHFt8C9yF5tatgmV5vgDPh0ByR8mq9LaHlgW1YAJ+4mbRva74p5MD7tE7ZspscguNrQFUxzEQroj3j4Qa++ScOgkf+dDaXab57r1WP3wlL7Zkm6p9B+D34=
+  email:
+    recipients:
+    - jak@microsoft.com
+    on_success: never
+    on_failure: always
