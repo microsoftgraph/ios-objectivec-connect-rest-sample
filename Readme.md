@@ -52,6 +52,10 @@ We'd love to get your feedback about the Office 365 iOS Microsoft Graph Connect 
 
 Questions about Office 365 development in general should be posted to [Stack Overflow](http://stackoverflow.com/questions/tagged/Office365+API). Make sure that your questions or comments are tagged with [Office365] and [MicrosoftGraph].
 
+## Contributing
+You will need to sign a [Contributor License Agreement](https://cla.microsoft.com/) before submitting your pull request. To complete the Contributor License Agreement (CLA), you will need to submit a request via the form and then electronically sign the CLA when you receive the email containing the link to the document. 
+
+
 ## Additional resources
 
 * [Office Dev Center](http://dev.office.com/)
