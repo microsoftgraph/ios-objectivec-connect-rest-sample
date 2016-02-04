@@ -44,7 +44,7 @@ Connecting to Office 365 is the first step every iOS app must take to start work
 
 5. Run the sample.
 
-To learn more about the sample, visit our [understanding the code](https://github.com/OfficeDev/O365-iOS-Microsoft-Graph-Connect/wiki) wiki page.
+To learn more about the sample, see [Call Microsoft Graph in an iOS App](https://graph.microsoft.io/en-us/docs/platform/ios).
 
 ## Questions and comments
 
