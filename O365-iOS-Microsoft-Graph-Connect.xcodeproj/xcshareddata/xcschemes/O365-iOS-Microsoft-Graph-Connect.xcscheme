@@ -16,8 +16,8 @@
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "96F8D60E1B603A6B00CD9F40"
                BuildableName = "O365-iOS-Unified-API-Connect.app"
-               BlueprintName = "O365-iOS-Unified-API-Connect"
-               ReferencedContainer = "container:O365-iOS-Unified-API-Connect.xcodeproj">
+               BlueprintName = "O365-iOS-Microsoft-Graph-Connect"
+               ReferencedContainer = "container:O365-iOS-Microsoft-Graph-Connect.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -34,8 +34,8 @@
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "96F8D60E1B603A6B00CD9F40"
             BuildableName = "O365-iOS-Unified-API-Connect.app"
-            BlueprintName = "O365-iOS-Unified-API-Connect"
-            ReferencedContainer = "container:O365-iOS-Unified-API-Connect.xcodeproj">
+            BlueprintName = "O365-iOS-Microsoft-Graph-Connect"
+            ReferencedContainer = "container:O365-iOS-Microsoft-Graph-Connect.xcodeproj">
          </BuildableReference>
       </MacroExpansion>
       <AdditionalOptions>
@@ -57,8 +57,8 @@
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "96F8D60E1B603A6B00CD9F40"
             BuildableName = "O365-iOS-Unified-API-Connect.app"
-            BlueprintName = "O365-iOS-Unified-API-Connect"
-            ReferencedContainer = "container:O365-iOS-Unified-API-Connect.xcodeproj">
+            BlueprintName = "O365-iOS-Microsoft-Graph-Connect"
+            ReferencedContainer = "container:O365-iOS-Microsoft-Graph-Connect.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
       <AdditionalOptions>
@@ -76,8 +76,8 @@
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "96F8D60E1B603A6B00CD9F40"
             BuildableName = "O365-iOS-Unified-API-Connect.app"
-            BlueprintName = "O365-iOS-Unified-API-Connect"
-            ReferencedContainer = "container:O365-iOS-Unified-API-Connect.xcodeproj">
+            BlueprintName = "O365-iOS-Microsoft-Graph-Connect"
+            ReferencedContainer = "container:O365-iOS-Microsoft-Graph-Connect.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>

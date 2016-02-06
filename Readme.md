@@ -31,7 +31,7 @@ Connecting to Office 365 is the first step every iOS app must take to start work
         
    For more information, see **Using CocoaPods** in [Additional Resources](#AdditionalResources)
   
-3. Open **O365-iOS-Unified-API-Connect.xcworkspace**
+3. Open **O365-iOS-Microsoft-Graph-Connect.xcworkspace**
 4. Open **ConnectViewController.m**. You'll see that the **ClientID** and **RedirectUri** values can be added to the top of the file. Supply the necessary values here:
 
         // You will set your application's clientId and redirect URI. 

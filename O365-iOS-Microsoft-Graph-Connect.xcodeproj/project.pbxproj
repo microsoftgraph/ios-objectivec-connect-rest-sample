@@ -25,7 +25,7 @@
 		9636EF391BA75545003BD5FD /* EmailBody.html */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.html; path = EmailBody.html; sourceTree = "<group>"; };
 		96D4A5DE1B66EA040085E94B /* AuthenticationManager.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AuthenticationManager.h; sourceTree = "<group>"; };
 		96D4A5DF1B66EA040085E94B /* AuthenticationManager.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = AuthenticationManager.m; sourceTree = "<group>"; };
-		96F8D60F1B603A6B00CD9F40 /* O365-iOS-Unified-API-Connect.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "O365-iOS-Unified-API-Connect.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		96F8D60F1B603A6B00CD9F40 /* O365-iOS-Microsoft-Graph-Connect.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "O365-iOS-Microsoft-Graph-Connect.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		96F8D6131B603A6B00CD9F40 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		96F8D6141B603A6B00CD9F40 /* main.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = main.m; sourceTree = "<group>"; };
 		96F8D6161B603A6B00CD9F40 /* AppDelegate.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AppDelegate.h; sourceTree = "<group>"; };
@@ -65,7 +65,7 @@
 		96F8D6061B603A6B00CD9F40 = {
 			isa = PBXGroup;
 			children = (
-				96F8D6111B603A6B00CD9F40 /* O365-iOS-Unified-API-Connect */,
+				96F8D6111B603A6B00CD9F40 /* O365-iOS-Microsoft-Graph-Connect */,
 				96F8D6101B603A6B00CD9F40 /* Products */,
 				C773DFCEC9E7379D72238EBE /* Pods */,
 				80AC59A498E68C81282C3F74 /* Frameworks */,
@@ -75,12 +75,12 @@
 		96F8D6101B603A6B00CD9F40 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				96F8D60F1B603A6B00CD9F40 /* O365-iOS-Unified-API-Connect.app */,
+				96F8D60F1B603A6B00CD9F40 /* O365-iOS-Microsoft-Graph-Connect.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
 		};
-		96F8D6111B603A6B00CD9F40 /* O365-iOS-Unified-API-Connect */ = {
+		96F8D6111B603A6B00CD9F40 /* O365-iOS-Microsoft-Graph-Connect */ = {
 			isa = PBXGroup;
 			children = (
 				96F8D6441B60516700CD9F40 /* EmailPostContent.json */,
@@ -98,7 +98,7 @@
 				96D4A5DE1B66EA040085E94B /* AuthenticationManager.h */,
 				96D4A5DF1B66EA040085E94B /* AuthenticationManager.m */,
 			);
-			path = "O365-iOS-Unified-API-Connect";
+			path = "O365-iOS-Microsoft-Graph-Connect";
 			sourceTree = "<group>";
 		};
 		96F8D6121B603A6B00CD9F40 /* Supporting Files */ = {
@@ -122,9 +122,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		96F8D60E1B603A6B00CD9F40 /* O365-iOS-Unified-API-Connect */ = {
+		96F8D60E1B603A6B00CD9F40 /* O365-iOS-Microsoft-Graph-Connect */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 96F8D6321B603A6B00CD9F40 /* Build configuration list for PBXNativeTarget "O365-iOS-Unified-API-Connect" */;
+			buildConfigurationList = 96F8D6321B603A6B00CD9F40 /* Build configuration list for PBXNativeTarget "O365-iOS-Microsoft-Graph-Connect" */;
 			buildPhases = (
 				CBBDE22E95BB4DE4F96F3F05 /* Check Pods Manifest.lock */,
 				96F8D60B1B603A6B00CD9F40 /* Sources */,
@@ -137,9 +137,9 @@
 			);
 			dependencies = (
 			);
-			name = "O365-iOS-Unified-API-Connect";
+			name = "O365-iOS-Microsoft-Graph-Connect";
 			productName = "O365-iOS-Unified-API-Connect";
-			productReference = 96F8D60F1B603A6B00CD9F40 /* O365-iOS-Unified-API-Connect.app */;
+			productReference = 96F8D60F1B603A6B00CD9F40 /* O365-iOS-Microsoft-Graph-Connect.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -156,7 +156,7 @@
 					};
 				};
 			};
-			buildConfigurationList = 96F8D60A1B603A6B00CD9F40 /* Build configuration list for PBXProject "O365-iOS-Unified-API-Connect" */;
+			buildConfigurationList = 96F8D60A1B603A6B00CD9F40 /* Build configuration list for PBXProject "O365-iOS-Microsoft-Graph-Connect" */;
 			compatibilityVersion = "Xcode 3.2";
 			developmentRegion = English;
 			hasScannedForEncodings = 0;
@@ -169,7 +169,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				96F8D60E1B603A6B00CD9F40 /* O365-iOS-Unified-API-Connect */,
+				96F8D60E1B603A6B00CD9F40 /* O365-iOS-Microsoft-Graph-Connect */,
 			);
 		};
 /* End PBXProject section */
@@ -362,10 +362,10 @@
 			baseConfigurationReference = 65A2EA18BA9F220814077DC7 /* Pods.debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				INFOPLIST_FILE = "O365-iOS-Unified-API-Connect/Info.plist";
+				INFOPLIST_FILE = "O365-iOS-Microsoft-Graph-Connect/Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 				PRODUCT_BUNDLE_IDENTIFIER = "com.microsoft.$(PRODUCT_NAME:rfc1034identifier)";
-				PRODUCT_NAME = "O365-iOS-Unified-API-Connect";
+				PRODUCT_NAME = "O365-iOS-Microsoft-Graph-Connect";
 			};
 			name = Debug;
 		};
@@ -374,17 +374,17 @@
 			baseConfigurationReference = F48A3CBFCB11639F9F7CC119 /* Pods.release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				INFOPLIST_FILE = "O365-iOS-Unified-API-Connect/Info.plist";
+				INFOPLIST_FILE = "O365-iOS-Microsoft-Graph-Connect/Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 				PRODUCT_BUNDLE_IDENTIFIER = "com.microsoft.$(PRODUCT_NAME:rfc1034identifier)";
-				PRODUCT_NAME = "O365-iOS-Unified-API-Connect";
+				PRODUCT_NAME = "O365-iOS-Microsoft-Graph-Connect";
 			};
 			name = Release;
 		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		96F8D60A1B603A6B00CD9F40 /* Build configuration list for PBXProject "O365-iOS-Unified-API-Connect" */ = {
+		96F8D60A1B603A6B00CD9F40 /* Build configuration list for PBXProject "O365-iOS-Microsoft-Graph-Connect" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				96F8D6301B603A6B00CD9F40 /* Debug */,
@@ -393,7 +393,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		96F8D6321B603A6B00CD9F40 /* Build configuration list for PBXNativeTarget "O365-iOS-Unified-API-Connect" */ = {
+		96F8D6321B603A6B00CD9F40 /* Build configuration list for PBXNativeTarget "O365-iOS-Microsoft-Graph-Connect" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				96F8D6331B603A6B00CD9F40 /* Debug */,
