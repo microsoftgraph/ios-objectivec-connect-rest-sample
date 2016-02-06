@@ -15,7 +15,7 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "96F8D60E1B603A6B00CD9F40"
-               BuildableName = "O365-iOS-Unified-API-Connect.app"
+               BuildableName = "O365-iOS-Microsoft-Graph-Connect.app"
                BlueprintName = "O365-iOS-Microsoft-Graph-Connect"
                ReferencedContainer = "container:O365-iOS-Microsoft-Graph-Connect.xcodeproj">
             </BuildableReference>
@@ -33,7 +33,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "96F8D60E1B603A6B00CD9F40"
-            BuildableName = "O365-iOS-Unified-API-Connect.app"
+            BuildableName = "O365-iOS-Microsoft-Graph-Connect.app"
             BlueprintName = "O365-iOS-Microsoft-Graph-Connect"
             ReferencedContainer = "container:O365-iOS-Microsoft-Graph-Connect.xcodeproj">
          </BuildableReference>
@@ -56,7 +56,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "96F8D60E1B603A6B00CD9F40"
-            BuildableName = "O365-iOS-Unified-API-Connect.app"
+            BuildableName = "O365-iOS-Microsoft-Graph-Connect.app"
             BlueprintName = "O365-iOS-Microsoft-Graph-Connect"
             ReferencedContainer = "container:O365-iOS-Microsoft-Graph-Connect.xcodeproj">
          </BuildableReference>
@@ -75,7 +75,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "96F8D60E1B603A6B00CD9F40"
-            BuildableName = "O365-iOS-Unified-API-Connect.app"
+            BuildableName = "O365-iOS-Microsoft-Graph-Connect.app"
             BlueprintName = "O365-iOS-Microsoft-Graph-Connect"
             ReferencedContainer = "container:O365-iOS-Microsoft-Graph-Connect.xcodeproj">
          </BuildableReference>
