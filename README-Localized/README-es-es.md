@@ -7,7 +7,7 @@ Conectarse a Office 365 es el primer paso que debe realizar cada aplicación iOS
 ## Requisitos previos
 * [Xcode](https://developer.apple.com/xcode/downloads/) de Apple
 * Instalación de [CocoaPods](https://guides.cocoapods.org/using/using-cocoapods.html) como administrador de dependencias.
-* Una cuenta de Office 365. Puede registrarse en [una suscripción a Office 365 Developer](https://profile.microsoft.com/RegSysProfileCenter/wizardnp.aspx?wizid=14b845d0-938c-45af-b061-f798fbb4d170), que incluye los recursos que necesita para comenzar a crear aplicaciones de Office 365.
+* Una cuenta de Office 365. Puede registrarse en [una suscripción a Office 365 Developer](https://aka.ms/devprogramsignup), que incluye los recursos que necesita para comenzar a crear aplicaciones de Office 365.
 
     > Nota: Si ya dispone de una suscripción, el vínculo anterior le dirige a una página con el mensaje *No se puede agregar a su cuenta actual*. En ese caso, use una cuenta de su suscripción actual a Office 365.
 * Un inquilino de Microsoft Azure para registrar la aplicación. Azure Active Directory (AD) proporciona servicios de identidad que las aplicaciones usan para autenticación y autorización. Puede adquirir una suscripción de prueba aquí: [Microsoft Azure](https://account.windowsazure.com/SignUp).
