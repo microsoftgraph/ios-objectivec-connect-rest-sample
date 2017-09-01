@@ -20,7 +20,7 @@ Connecting to Office 365 is the first step every iOS app must take to start work
 
 1. Clone this repository
 2. Use [Carthage](https://github.com/Carthage/Carthage) to import the Microsoft Authenticaion Library (MSAL) iOS dependency. Download the latest version of Carthage [here](https://github.com/Carthage/Carthage/releases). 
-3. Open **O365-iOS-Microsoft-Graph-Connect.xcworkspace**
+3. Open **O365-iOS-Microsoft-Graph-Connect.xcodeproj**
 4. Open **info.plist**. You'll see that the **ClientID** (application id you received from the registration process in the prerequisites section) goes here.
   ```xml
     <key>CFBundleURLTypes</key>
