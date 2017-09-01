@@ -18,6 +18,7 @@
 		96F8D6401B603E1700CD9F40 /* SendMailViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 96F8D63F1B603E1700CD9F40 /* SendMailViewController.m */; };
 		96F8D6431B60502200CD9F40 /* ConnectViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 96F8D6421B60502200CD9F40 /* ConnectViewController.m */; };
 		96F8D6451B60516700CD9F40 /* EmailPostContent.json in Resources */ = {isa = PBXBuildFile; fileRef = 96F8D6441B60516700CD9F40 /* EmailPostContent.json */; };
+		CF2E75471F562117001543E0 /* MSAL.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CF2E75461F562117001543E0 /* MSAL.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -42,6 +43,7 @@
 		96F8D6441B60516700CD9F40 /* EmailPostContent.json */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.json; path = EmailPostContent.json; sourceTree = "<group>"; };
 		A19CA5C2D3D6C3D7208D5245 /* libPods.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libPods.a; sourceTree = BUILT_PRODUCTS_DIR; };
 		B4D538175EBD344551AEC116 /* Pods-O365-iOS-Microsoft-Graph-Connect.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-O365-iOS-Microsoft-Graph-Connect.debug.xcconfig"; path = "Pods/Target Support Files/Pods-O365-iOS-Microsoft-Graph-Connect/Pods-O365-iOS-Microsoft-Graph-Connect.debug.xcconfig"; sourceTree = "<group>"; };
+		CF2E75461F562117001543E0 /* MSAL.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MSAL.framework; path = Carthage/Build/iOS/MSAL.framework; sourceTree = "<group>"; };
 		F48A3CBFCB11639F9F7CC119 /* Pods.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = Pods.release.xcconfig; path = "Pods/Target Support Files/Pods/Pods.release.xcconfig"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -50,6 +52,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				CF2E75471F562117001543E0 /* MSAL.framework in Frameworks */,
 				585B6289AAD0316A0E7E5344 /* libPods-O365-iOS-Microsoft-Graph-Connect.a in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -60,6 +63,7 @@
 		80AC59A498E68C81282C3F74 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				CF2E75461F562117001543E0 /* MSAL.framework */,
 				A19CA5C2D3D6C3D7208D5245 /* libPods.a */,
 				7EF8C783F107FE39DAE93A8C /* libPods-O365-iOS-Microsoft-Graph-Connect.a */,
 			);
@@ -138,6 +142,7 @@
 				96F8D60D1B603A6B00CD9F40 /* Resources */,
 				DCCD0B18313A923C09291287 /* [CP] Copy Pods Resources */,
 				AD29497F65F4C7383B4C63C5 /* [CP] Embed Pods Frameworks */,
+				CF2E75481F562141001543E0 /* ShellScript */,
 			);
 			buildRules = (
 			);
@@ -225,6 +230,20 @@
 			shellPath = /bin/sh;
 			shellScript = "diff \"${PODS_ROOT}/../Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [[ $? != 0 ]] ; then\n    cat << EOM\nerror: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\nEOM\n    exit 1\nfi\n";
 			showEnvVarsInLog = 0;
+		};
+		CF2E75481F562141001543E0 /* ShellScript */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/Carthage/Build/iOS/MSAL.framework",
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "/usr/local/bin/carthage copy-frameworks";
 		};
 		DCCD0B18313A923C09291287 /* [CP] Copy Pods Resources */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -368,6 +387,10 @@
 			baseConfigurationReference = B4D538175EBD344551AEC116 /* Pods-O365-iOS-Microsoft-Graph-Connect.debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)/Carthage/Build/iOS",
+				);
 				INFOPLIST_FILE = "O365-iOS-Microsoft-Graph-Connect/Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 				PRODUCT_BUNDLE_IDENTIFIER = "com.microsoft.$(PRODUCT_NAME:rfc1034identifier)";
@@ -380,6 +403,10 @@
 			baseConfigurationReference = 00C74A0B4BF5149E1625B574 /* Pods-O365-iOS-Microsoft-Graph-Connect.release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)/Carthage/Build/iOS",
+				);
 				INFOPLIST_FILE = "O365-iOS-Microsoft-Graph-Connect/Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 				PRODUCT_BUNDLE_IDENTIFIER = "com.microsoft.$(PRODUCT_NAME:rfc1034identifier)";

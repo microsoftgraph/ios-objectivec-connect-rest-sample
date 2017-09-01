@@ -3,21 +3,12 @@
  * See full license at the bottom of this file.
  */
 
+#import <MSAL/MSAL.h>
 #import "AuthenticationManager.h"
-#import <ADAuthenticationContext.h>
 
-@interface AuthenticationManager()
-
-@property (nonatomic, strong) NSString *authority;
-@property (nonatomic, strong) NSString *clientID;
-@property (nonatomic, strong) NSString *redirectUri;
-@property (nonatomic, strong) NSString *resourceID;
-
-@property (nonatomic, strong) ADAuthenticationContext *context;
-
-@end
 
 @implementation AuthenticationManager
+
 
 #pragma mark - singleton
 + (AuthenticationManager *)sharedInstance
@@ -34,79 +25,131 @@
 }
 
 #pragma mark - init
-- (void)initWithAuthority:(NSString*)authority
-                 clientId:(NSString*)clientId
-              redirectURI:(NSString*)redirectURI
-               resourceID:(NSString*)resourceID
-               completion:(void (^)(ADAuthenticationError *error))completion
+- (void)initWithAuthority:(NSString*)authority_
+               completion:(void (^)(NSError* error))completion
 {
-    ADAuthenticationError *error;
-    _context = [ADAuthenticationContext authenticationContextWithAuthority:authority error:&error];
     
-    if(error){
-        // Log error
+    //Get the MSAL client Id for this Azure app registration. We store it in the main bundle
+    NSDictionary *dictionary = [NSDictionary dictionaryWithContentsOfFile:[[NSBundle mainBundle] pathForResource:@"Info" ofType:@"plist"]];
+    NSArray *array = [dictionary objectForKey:@"CFBundleURLTypes"];
+    NSString *redirectUrl = [self getRedirectUrlFromMSALArray:(array)];
+    
+    NSRange range = [redirectUrl rangeOfString:@"msal"];
+    NSString *kClientId = [[redirectUrl substringFromIndex:NSMaxRange(range)] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
+    NSLog(@"client id = %@", kClientId);
+
+    self.clientId = kClientId;
+    self.authorty = authority_;
+    
+    NSError *error_ = nil;
+    @try {
+        self.msalClient = [[MSALPublicClientApplication alloc] initWithClientId:kClientId error:&error_];
+        if (error_) {
+            completion(error_);
+        } else {
+            completion(nil);}
+        
+    }
+    @catch(NSException *exception) {
+        NSMutableDictionary * info = [NSMutableDictionary dictionary];
+        [info setValue:exception.name forKey:@"ExceptionName"];
+        [info setValue:exception.reason forKey:@"ExceptionReason"];
+        [info setValue:exception.callStackReturnAddresses forKey:@"ExceptionCallStackReturnAddresses"];
+        [info setValue:exception.callStackSymbols forKey:@"ExceptionCallStackSymbols"];
+        [info setValue:exception.userInfo forKey:@"ExceptionUserInfo"];
+        
+        NSError *error = [[NSError alloc] initWithDomain:MSALErrorDomain code:MSALErrorInternal userInfo:info];
+        //use error
         completion(error);
     }
-    else{
-        self.clientID = clientId;
-        self.redirectUri = redirectURI;
-        self.authority = authority;
-        self.resourceID = resourceID;
-        
-        completion(nil);
-    }
+    
 }
+
 
 #pragma mark - acquire token
-- (void)acquireAuthTokenCompletion:(void (^)(ADAuthenticationError *error))completion {
-    [self acquireAuthTokenWithResource:self.resourceID
-                              clientID:self.clientID
-                           redirectURI: [NSURL URLWithString:self.redirectUri]
-                            completion:^(ADAuthenticationError *error) {
-                                completion(error);}];
+
+- (void)acquireAuthTokenWithScopes:(NSArray<NSString *> *)scopes
+                        completion:(void(^)(MSALErrorCode error))completion {
+
+    NSError  __autoreleasing  *error_ = nil;
+    
+    NSArray<MSALUser *> *users = [self.msalClient users:(&error_)];
+    
+    // We check to see if we have a current logged in user. If we don't, then we need to sign someone in.
+    // We throw an interactionRequired so that we trigger the interactive signin.
+
+    if (self.msalClient == nil) {
+        completion(MSALErrorInternal);
+ 
+    }
+    
+    if (users == nil | [users count] == 0) {
+        @try {
+            [self.msalClient acquireTokenForScopes:scopes completionBlock:^(MSALResult *result, NSError *error) {
+                if (error) {
+                    completion(error.code);
+                } else {
+                    self.clientId = self.msalClient.clientId;
+                    self.accessToken = result.accessToken;
+
+                    self.user = result.user;
+                    self.userID = result.user.displayableId;
+                    completion(0);
+                    
+                }
+            }];
+        }
+        @catch (NSException *exception) {
+            completion(MSALErrorInternal);
+        }
+
+    } else {
+        @try {
+            self.user =  [users objectAtIndex:0];
+            [self.msalClient acquireTokenSilentForScopes:scopes user:self.user completionBlock:^(MSALResult *result, NSError *error) {
+                if (error) {
+                    completion(MSALErrorInteractionRequired);
+                } else {
+                    self.clientId = self.msalClient.clientId;
+                    self.accessToken = result.accessToken;
+                    self.userID = result.user.displayableId;
+
+                    completion(0);
+                    
+                }
+            }];
+        }
+        @catch (NSException *exception) {
+            completion(MSALErrorInternal);
+        }
+        
+    }
+
 }
 
-- (void)acquireAuthTokenWithResource:(NSString *)resourceID
-                            clientID:(NSString*)clientID
-                         redirectURI:(NSURL*)redirectURI
-                          completion:(void (^)(ADAuthenticationError *error))completion {
-    
-    NSLog(@"acquireAuthTokenWithResource");
-    [self.context acquireTokenWithResource:resourceID
-                                  clientId:clientID
-                               redirectUri:redirectURI
-                           completionBlock:^(ADAuthenticationResult *result) {
-                               NSLog(@"Completion");
-                               
-                               if (result.status !=AD_SUCCEEDED){
-                                   NSLog(@"error");
-                                   completion(result.error);
-                               }
-                               
-                               else{
-                                   NSLog(@"complete!");
-                                   self.accessToken = result.accessToken;
-                                   self.userID = result.tokenCacheStoreItem.userInformation.userId;
-                                   completion(nil);
-                               }
-                           }];
+-(void) acquireAuthTokenCompletion:(void (^)(MSALErrorCode *error))completion{
 }
+
+#pragma mark - Get client id from bundle
+
+- (NSString *) getRedirectUrlFromMSALArray:(NSArray *) array {
+    NSDictionary *arrayElement = [array objectAtIndex: 0];
+    NSArray *redirectArray = [arrayElement valueForKeyPath:@"CFBundleURLSchemes"];
+    NSString *substring = [redirectArray objectAtIndex:0];
+    return substring;
+}
+
 
 #pragma mark - clear credentials
  //Clears the ADAL token cache and the cookie cache.
 - (void)clearCredentials {
 
-    // Remove all the cookies from this application's sandbox. The authorization code is stored in the
-    // cookies and ADAL will try to get to access tokens based on auth code in the cookie.
-    NSHTTPCookieStorage *cookieStore = [NSHTTPCookieStorage sharedHTTPCookieStorage];
-    for (NSHTTPCookie *cookie in cookieStore.cookies) {
-        [cookieStore deleteCookie:cookie];
-    }
-    
-    [self.context.tokenCacheStore removeAllWithError:nil];
+    NSError *error_ = nil;
+    [self.msalClient removeUser:self.user error:&error_];
 }
 
 @end
+
 
 // *********************************************************
 //

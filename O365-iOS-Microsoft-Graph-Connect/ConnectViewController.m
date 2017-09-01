@@ -5,27 +5,28 @@
 
 #import "ConnectViewController.h"
 #import "SendMailViewController.h"
-#import <ADAuthenticationError.h>
 #import "AuthenticationManager.h"
+#import <MSAL/MSAL.h>
+#import <MSAL/MSALError.h>
 
 // You will set your application's clientId and redirect URI.
-NSString * const kRedirectUri = @"ENTER_YOUR_REDIRECT_URI";
-NSString * const kClientId    = @"ENTER_YOUR_CLIENT_ID";
-NSString * const kAuthority   = @"https://login.microsoftonline.com/common";
+NSString *  kClientId;
+NSString * const kAuthority   = @"https://login.microsoftonline.com/common/v2.0";
 NSString * const kResourceId  = @"https://graph.microsoft.com";
 
 @interface ConnectViewController()
 
-@property (nonatomic, strong) ADAuthenticationContext *adContext;
 
 @property (weak, nonatomic) IBOutlet UIActivityIndicatorView *activityIndicator;
 @property (weak, nonatomic) IBOutlet UIButton *connectButton;
+@property (weak, nonatomic) NSArray *scopes;
 @end
 
 @implementation ConnectViewController
 
 - (void)viewWillAppear:(BOOL)animated {
     [super viewWillAppear:animated];
+
 }
 
 - (void)viewWillDisappear:(BOOL)animated {
@@ -41,36 +42,41 @@ NSString * const kResourceId  = @"https://graph.microsoft.com";
 
 #pragma mark - Connect
 - (void)processConnect {
+    
+
+    self.scopes =  [NSArray arrayWithObjects:@"https://graph.microsoft.com/Mail.ReadWrite", @"https://graph.microsoft.com/Mail.Send", @"https://graph.microsoft.com/Files.ReadWrite", @"https://graph.microsoft.com/User.ReadBasic.All", nil];
+
     AuthenticationManager *authManager = [AuthenticationManager sharedInstance];
 
+    
     [authManager initWithAuthority:kAuthority
-                          clientId:kClientId
-                       redirectURI:kRedirectUri
-                        resourceID:@"https://graph.microsoft.com"
-                        completion:^(ADAuthenticationError *error) {
+                          completion:^(NSError* error) {
+                              if(error){
+                                  [self showLoadingUI:NO];
+                                  [self handleADAuthenticationError:error];
+                              }
+                              else{
+                                  [authManager acquireAuthTokenWithScopes:self.scopes completion:^(MSALErrorCode error) {
+                                      if(error){
+                                          [self showLoadingUI:NO];
+                                          [self handleMSALAuthenticationError:&error];
+                                      }
+                                      else{
+                                          NSLog(@"%@", [authManager userID]);
+                                          
+                                          [[NSOperationQueue mainQueue] addOperationWithBlock:^{
+                                              [self performSegueWithIdentifier:@"showSendMail" sender:nil];
+                                              [self showLoadingUI:NO];
+                                          }];
+                                      }
+                                  }];
+                              }
 
-                            if(error){
-                                [self showLoadingUI:NO];
-                                [self handleADAuthenticationError:error];
-                            }
-                            else{
-                                [authManager acquireAuthTokenCompletion:^(ADAuthenticationError *acquireTokenError) {
-                                    if(acquireTokenError){
-                                        [self showLoadingUI:NO];
-                                        [self handleADAuthenticationError:acquireTokenError];
-                                    }
-                                    else{
-                                        NSLog(@"%@", [authManager userID]);
-                                        
-                                        [[NSOperationQueue mainQueue] addOperationWithBlock:^{
-                                            [self performSegueWithIdentifier:@"showSendMail" sender:nil];
-                                            [self showLoadingUI:NO];
-                                        }];
-                                    }
-                                }];
-                            }
-                        }];
+                          }];
+    
+    
 }
+
 
 #pragma mark - Navigation
 - (void)prepareForSegue:(UIStoryboardSegue *)segue sender:(id)sender {
@@ -80,6 +86,10 @@ NSString * const kResourceId  = @"https://graph.microsoft.com";
 }
 
 #pragma mark - helper
+
+
+
+
 - (void)showLoadingUI:(BOOL)loading {
     if(loading){
         [self.activityIndicator startAnimating];
@@ -93,8 +103,8 @@ NSString * const kResourceId  = @"https://graph.microsoft.com";
     }
 }
 
-- (void)handleADAuthenticationError:(ADAuthenticationError *)error {
-    NSLog(@"Error\nProtocol Code %@\nDescription %@", error.protocolCode, error.description);
+- (void)handleADAuthenticationError:(NSError*)error {
+  //  NSLog(@"Error\nProtocol Code %@\nDescription %s", &error, "");
     UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Error"
                                                                    message:@"Please see the log for more details"
                                                             preferredStyle:UIAlertControllerStyleAlert];
@@ -107,6 +117,19 @@ NSString * const kResourceId  = @"https://graph.microsoft.com";
     }];
 }
 
+- (void)handleMSALAuthenticationError:(MSALErrorCode*)error {
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Error"
+                                                                   message:@"Please see the log for more details"
+                                                            preferredStyle:UIAlertControllerStyleAlert];
+    [alert addAction:[UIAlertAction actionWithTitle:@"Close"
+                                              style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+                                                  ;
+                                              }]];
+    [self presentViewController:alert animated:YES completion:^{
+        ;
+    }];
+
+}
 
 @end
 

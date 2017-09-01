@@ -4,31 +4,32 @@
  */
 
 #import <Foundation/Foundation.h>
-#import <ADAuthenticationContext.h>
+#import <MSAL/MSAL.h>
 
 @interface AuthenticationManager : NSObject
 
 + (AuthenticationManager*)sharedInstance;
 
 - (void)initWithAuthority:(NSString*)authority
-                 clientId:(NSString*)clientId
-              redirectURI:(NSString*)redirectURI
-               resourceID: (NSString*)resourceID
-               completion:(void (^)(ADAuthenticationError *error))completion;
+               completion:(void (^)(NSError *error))completion;
 
 @property (nonatomic, strong) NSString *accessToken;
 @property (nonatomic, strong) NSString *userID;
+@property (nonatomic, strong) MSALPublicClientApplication *msalClient;
+@property (nonatomic, weak) NSString *clientId;
+@property (nonatomic, weak) NSString *authorty;
+@property (nonatomic, strong) MSALUser *user;
 
-- (void)acquireAuthTokenWithResource:(NSString *)resourceID
-                            clientID:(NSString*)clientID
-                         redirectURI:(NSURL*)redirectURI
-                          completion:(void (^)(ADAuthenticationError *error))completion;
 
--(void) acquireAuthTokenCompletion:(void (^)(ADAuthenticationError *error))completion;
+- (void)acquireAuthTokenWithScopes:(NSArray<NSString *> *)scopes
+                        completion:(void(^)(MSALErrorCode error))completion;
+
+-(void) acquireAuthTokenCompletion:(void (^)(MSALErrorCode *error))completion;
 
 // Clears the ADAL token cache and the cookie cache.
 - (void) clearCredentials;
 
+- (NSString *) getRedirectUrlFromMSALArray:(NSArray *) array;
 
 @end
 
@@ -61,3 +62,5 @@
 // WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 //
 // *********************************************************
+
+

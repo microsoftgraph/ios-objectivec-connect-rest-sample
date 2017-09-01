@@ -4,6 +4,7 @@
  */
 
 #import "AppDelegate.h"
+#import <MSAL/msal.h>
 
 @interface AppDelegate ()
 
@@ -39,6 +40,13 @@
     // Called when the application is about to terminate. Save data if appropriate. See also applicationDidEnterBackground:.
 }
 
+- (BOOL)application:(UIApplication *)app openURL:(NSURL *)url options:(NSDictionary<NSString *,id> *)options
+{
+    
+    [MSALPublicClientApplication handleMSALResponse:url];
+    
+    return YES;
+}
 @end
 
 
