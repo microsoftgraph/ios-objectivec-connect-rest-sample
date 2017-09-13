@@ -32,7 +32,7 @@ Connecting to Office 365 is the first step every iOS app must take to start work
               <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
               <key>CFBundleURLSchemes</key>
               <array>
-                  <string>msal[ENTER_YOUR_CLIENT_ID]</string>
+                  <string>msalENTER_YOUR_CLIENT_ID</string>
                   <string>auth</string>
               </array>
           </dict>
