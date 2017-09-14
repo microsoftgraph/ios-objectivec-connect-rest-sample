@@ -1,8 +1,12 @@
-<?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB" version="3.0" toolsVersion="9059" systemVersion="15A284" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" useTraitCollections="YES" initialViewController="aRC-Lx-LJp">
+<?xml version="1.0" encoding="UTF-8"?>
+<document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB" version="3.0" toolsVersion="13196" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" useTraitCollections="YES" colorMatched="YES" initialViewController="aRC-Lx-LJp">
+    <device id="retina5_9" orientation="portrait">
+        <adaptation id="fullscreen"/>
+    </device>
     <dependencies>
         <deployment identifier="iOS"/>
-        <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="9049"/>
+        <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="13173"/>
+        <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>
     </dependencies>
     <scenes>
         <!--Navigation Controller-->
@@ -10,9 +14,8 @@
             <objects>
                 <navigationController id="aRC-Lx-LJp" sceneMemberID="viewController">
                     <navigationBar key="navigationBar" contentMode="scaleToFill" id="na7-WG-sde">
-                        <rect key="frame" x="0.0" y="0.0" width="320" height="44"/>
+                        <rect key="frame" x="0.0" y="44" width="375" height="44"/>
                         <autoresizingMask key="autoresizingMask"/>
-                        <animations/>
                     </navigationBar>
                     <connections>
                         <segue destination="0Cx-Pl-cgR" kind="relationship" relationship="rootViewController" id="diN-S4-bSc"/>
@@ -22,7 +25,7 @@
             </objects>
             <point key="canvasLocation" x="-522" y="-167"/>
         </scene>
-        <!--Unified API Connect-->
+        <!--Office 365 Connect-->
         <scene sceneID="lNc-s6-iQd">
             <objects>
                 <viewController id="jF3-fd-yfL" customClass="SendMailViewController" sceneMemberID="viewController">
@@ -31,19 +34,17 @@
                         <viewControllerLayoutGuide type="bottom" id="HME-QF-XDQ"/>
                     </layoutGuides>
                     <view key="view" contentMode="scaleToFill" id="pOX-iC-hqT">
-                        <rect key="frame" x="0.0" y="0.0" width="600" height="600"/>
+                        <rect key="frame" x="0.0" y="0.0" width="375" height="812"/>
                         <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMaxY="YES"/>
                         <subviews>
                             <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="Hi User" textAlignment="natural" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="uEF-eb-4rm">
-                                <rect key="frame" x="272" y="109" width="57" height="21"/>
-                                <animations/>
+                                <rect key="frame" x="159" y="133" width="57" height="21"/>
                                 <fontDescription key="fontDescription" type="system" pointSize="17"/>
                                 <color key="textColor" cocoaTouchSystemColor="darkTextColor"/>
                                 <nil key="highlightedColor"/>
                             </label>
                             <textView clipsSubviews="YES" multipleTouchEnabled="YES" contentMode="scaleToFill" text="You're now connected to Office 365. Tap the Send button below to send a message from your account using the Office 365 SDK." textAlignment="center" translatesAutoresizingMaskIntoConstraints="NO" id="n1O-x6-vF2">
-                                <rect key="frame" x="150" y="150" width="300" height="76"/>
-                                <animations/>
+                                <rect key="frame" x="37" y="174" width="300" height="76"/>
                                 <constraints>
                                     <constraint firstAttribute="height" constant="76" id="Shy-z4-2hL"/>
                                     <constraint firstAttribute="width" constant="300" id="mk4-3E-0IW"/>
@@ -52,35 +53,30 @@
                                 <textInputTraits key="textInputTraits" autocapitalizationType="sentences"/>
                             </textView>
                             <textField opaque="NO" clipsSubviews="YES" contentMode="scaleToFill" contentHorizontalAlignment="left" contentVerticalAlignment="center" borderStyle="roundedRect" textAlignment="natural" minimumFontSize="17" clearButtonMode="always" translatesAutoresizingMaskIntoConstraints="NO" id="nXc-sn-2gy">
-                                <rect key="frame" x="150" y="234" width="300" height="30"/>
-                                <animations/>
+                                <rect key="frame" x="37" y="258" width="300" height="30"/>
                                 <fontDescription key="fontDescription" type="system" pointSize="14"/>
                                 <textInputTraits key="textInputTraits"/>
                             </textField>
                             <button opaque="NO" contentMode="scaleToFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" buttonType="roundedRect" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="aBd-HJ-pRJ">
-                                <rect key="frame" x="282" y="296" width="36" height="30"/>
-                                <animations/>
+                                <rect key="frame" x="169" y="320" width="36" height="30"/>
                                 <state key="normal" title="Send"/>
                                 <connections>
                                     <action selector="sendMailTapped:" destination="jF3-fd-yfL" eventType="touchUpInside" id="h9x-Fl-fgK"/>
                                 </connections>
                             </button>
                             <activityIndicatorView hidden="YES" opaque="NO" contentMode="scaleToFill" horizontalHuggingPriority="750" verticalHuggingPriority="750" hidesWhenStopped="YES" style="whiteLarge" translatesAutoresizingMaskIntoConstraints="NO" id="7EM-kO-jES">
-                                <rect key="frame" x="282" y="325" width="37" height="37"/>
-                                <animations/>
-                                <color key="color" red="0.10332039696941231" green="0.49908475522666196" blue="1" alpha="1" colorSpace="calibratedRGB"/>
+                                <rect key="frame" x="169" y="349" width="37" height="37"/>
+                                <color key="color" red="0.10332039696941231" green="0.49908475522666196" blue="1" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
                             </activityIndicatorView>
                             <textView clipsSubviews="YES" multipleTouchEnabled="YES" userInteractionEnabled="NO" contentMode="scaleToFill" textAlignment="center" translatesAutoresizingMaskIntoConstraints="NO" id="Cjw-ie-G7z">
-                                <rect key="frame" x="150" y="380" width="300" height="128"/>
-                                <animations/>
+                                <rect key="frame" x="37" y="404" width="300" height="282"/>
                                 <string key="text">Status text
 This is where the status is displayed</string>
                                 <fontDescription key="fontDescription" type="system" pointSize="14"/>
                                 <textInputTraits key="textInputTraits" autocapitalizationType="sentences"/>
                             </textView>
                         </subviews>
-                        <animations/>
-                        <color key="backgroundColor" white="1" alpha="1" colorSpace="calibratedWhite"/>
+                        <color key="backgroundColor" red="1" green="1" blue="1" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
                         <constraints>
                             <constraint firstItem="aBd-HJ-pRJ" firstAttribute="centerX" secondItem="nXc-sn-2gy" secondAttribute="centerX" id="1x5-bz-w4B"/>
                             <constraint firstItem="Cjw-ie-G7z" firstAttribute="top" secondItem="7EM-kO-jES" secondAttribute="bottom" constant="18" id="4w7-ba-LfB"/>
@@ -99,7 +95,7 @@ This is where the status is displayed</string>
                             <constraint firstItem="n1O-x6-vF2" firstAttribute="top" secondItem="uEF-eb-4rm" secondAttribute="bottom" constant="20" id="zjt-v0-u4u"/>
                         </constraints>
                     </view>
-                    <navigationItem key="navigationItem" title="Unified API Connect" id="Tes-nE-eY1">
+                    <navigationItem key="navigationItem" title="Office 365 Connect" id="Tes-nE-eY1">
                         <barButtonItem key="rightBarButtonItem" title="Disconnect" id="g8f-Iq-Yeo">
                             <connections>
                                 <action selector="disconnectTapped:" destination="jF3-fd-yfL" id="ZNj-ab-CQZ"/>
@@ -127,27 +123,24 @@ This is where the status is displayed</string>
                         <viewControllerLayoutGuide type="bottom" id="5hp-nC-gDZ"/>
                     </layoutGuides>
                     <view key="view" contentMode="scaleToFill" id="Dzp-b0-5KY">
-                        <rect key="frame" x="0.0" y="0.0" width="600" height="600"/>
+                        <rect key="frame" x="0.0" y="0.0" width="375" height="812"/>
                         <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                         <subviews>
-                            <button opaque="NO" contentMode="scaleToFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" buttonType="roundedRect" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="ZFh-2x-1dt">
+                            <button opaque="NO" contentMode="scaleToFill" misplaced="YES" contentHorizontalAlignment="center" contentVerticalAlignment="center" buttonType="roundedRect" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="ZFh-2x-1dt">
                                 <rect key="frame" x="249" y="285" width="103" height="30"/>
-                                <animations/>
                                 <state key="normal" title="Connect (Rest)">
-                                    <color key="titleShadowColor" red="0.0" green="0.0" blue="0.0" alpha="1" colorSpace="calibratedRGB"/>
+                                    <color key="titleShadowColor" red="0.0" green="0.0" blue="0.0" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
                                 </state>
                                 <connections>
                                     <action selector="connectTapped:" destination="0Cx-Pl-cgR" eventType="touchUpInside" id="piy-kr-XEv"/>
                                 </connections>
                             </button>
                             <activityIndicatorView hidden="YES" opaque="NO" contentMode="scaleToFill" horizontalHuggingPriority="750" verticalHuggingPriority="750" hidesWhenStopped="YES" style="whiteLarge" translatesAutoresizingMaskIntoConstraints="NO" id="Gwc-Xn-eVq">
-                                <rect key="frame" x="282" y="225" width="37" height="37"/>
-                                <animations/>
-                                <color key="color" red="0.10332039696941231" green="0.49908475522666196" blue="1" alpha="1" colorSpace="calibratedRGB"/>
+                                <rect key="frame" x="169" y="331" width="37" height="37"/>
+                                <color key="color" red="0.10332039696941231" green="0.49908475522666196" blue="1" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
                             </activityIndicatorView>
                         </subviews>
-                        <animations/>
-                        <color key="backgroundColor" white="1" alpha="1" colorSpace="calibratedWhite"/>
+                        <color key="backgroundColor" red="1" green="1" blue="1" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
                         <constraints>
                             <constraint firstItem="ZFh-2x-1dt" firstAttribute="top" secondItem="Gwc-Xn-eVq" secondAttribute="bottom" constant="23" id="LuB-5W-PKQ"/>
                             <constraint firstAttribute="centerX" secondItem="Gwc-Xn-eVq" secondAttribute="centerX" id="cWd-OO-cec"/>

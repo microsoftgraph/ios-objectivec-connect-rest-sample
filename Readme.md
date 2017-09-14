@@ -5,7 +5,6 @@ Connecting to Office 365 is the first step every iOS app must take to start work
  
 ## Prerequisites
 * [Xcode](https://developer.apple.com/xcode/downloads/) from Apple
-* Installation of [CocoaPods](https://guides.cocoapods.org/using/using-cocoapods.html)  as a dependency manager.
 * An Office 365 account. You can sign up for [an Office 365 Developer subscription](https://aka.ms/devprogramsignup) that includes the resources that you need to start building Office 365 apps.
 
      > Note: If you already have a subscription, the previous link sends you to a page with the message *Sorry, you can’t add that to your current account*. In that case, use an account from your current Office 365 subscription.
@@ -20,25 +19,35 @@ Connecting to Office 365 is the first step every iOS app must take to start work
 ## Running this sample in Xcode
 
 1. Clone this repository
-2. Use CocoaPods to import the Active Directory Authentication Library (ADAL) iOS dependency:
-        
-	     pod 'ADALiOS', '= 1.2.4'
+2. Use [Carthage](https://github.com/Carthage/Carthage) to import the Microsoft Authenticaion Library (MSAL) iOS dependency. Download the latest version of Carthage [here](https://github.com/Carthage/Carthage/releases). 
+3. Open **O365-iOS-Microsoft-Graph-Connect.xcodeproj**
+4. Open **info.plist**. You'll see that the **ClientID** (application id you received from the registration process in the prerequisites section) goes here.
+  ```xml
+    <key>CFBundleURLTypes</key>
+      <array>
+          <dict>
+              <key>CFBundleTypeRole</key>
+              <string>Editor</string>
+              <key>CFBundleURLName</key>
+              <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+              <key>CFBundleURLSchemes</key>
+              <array>
+                  <string>msalENTER_YOUR_CLIENT_ID</string>
+                  <string>auth</string>
+              </array>
+          </dict>
+      </array>
 
- This sample app already contains a podfile that will get the ADAL components (pods) into  the project. Simply navigate to the project From **Terminal** and run: 
-        
-        pod install
-        
-   For more information, see **Using CocoaPods** in [Additional Resources](#AdditionalResources)
-  
-3. Open **O365-iOS-Microsoft-Graph-Connect.xcworkspace**
-4. Open **ConnectViewController.m**. You'll see that the **ClientID** (application id you received from the registration process in the prerequisites section) and **RedirectUri** values can be added to the top of the file. Supply the necessary values here:
+  ```
 
-        // You will set your application's clientId and redirect URI. 
-        NSString * const kRedirectUri = @"ENTER_YOUR_REDIRECT_URI";
-        NSString * const kClientId    = @"ENTER_YOUR_CLIENT_ID";
-        NSString * const kAuthority   = @"https://login.microsoftonline.com/common";
-        NSString * const kResourceId  = @"https://graph.microsoft.com";
     
+## Build the MSAL framework
+
+The preview version of MSAL is distributed as source code using Carthage. To build the source code, do these steps:
+
+1. Open the Bash terminal and go to the app root folder.
+2. Create a **cartfile**: Copy `echo "github \"AzureAD/microsoft-authentication-library-for-objc\" \"master\"" > Cartfile`  into the terminal and run the command.
+3. Build the MSAL library: Copy `carthage update` into the terminal and run the command.        
 
 5. Run the sample.
 
@@ -62,4 +71,4 @@ This project has adopted the [Microsoft Open Source Code of Conduct](https://ope
 * [Using CocoaPods](https://guides.cocoapods.org/using/using-cocoapods.html)
 
 ## Copyright
-Copyright (c) 2015 Microsoft. All rights reserved.
+Copyright (c) 2017 Microsoft. All rights reserved.
