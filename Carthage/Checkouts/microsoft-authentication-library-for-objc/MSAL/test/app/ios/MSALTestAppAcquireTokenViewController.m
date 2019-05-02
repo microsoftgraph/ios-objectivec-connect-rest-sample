@@ -33,6 +33,24 @@
 #import "MSALTestAppScopesViewController.h"
 #import "MSALTestAppTelemetryViewController.h"
 #import "MSALStressTestHelper.h"
+#import "MSALPublicClientApplication+Internal.h"
+#import "MSIDDefaultTokenCacheAccessor.h"
+#import <WebKit/WebKit.h>
+#import "MSALTestAppAuthorityTypeViewController.h"
+#import "MSALTestAppProfileViewController.h"
+#import "MSALResult.h"
+#import "MSALDefinitions.h"
+#import "MSALInteractiveTokenParameters.h"
+#import "MSALSilentTokenParameters.h"
+#import "MSALAuthority.h"
+#import <MSAL/MSALGlobalConfig.h>
+#import <MSAL/MSALLoggerConfig.h>
+#import "MSALHTTPConfig.h"
+
+#define TEST_EMBEDDED_WEBVIEW_TYPE_INDEX 0
+#define TEST_SYSTEM_WEBVIEW_TYPE_INDEX 1
+#define TEST_EMBEDDED_WEBVIEW_MSAL 0
+#define TEST_EMBEDDED_WEBVIEW_CUSTOM 1
 
 @interface MSALTestAppAcquireTokenViewController () <UITextFieldDelegate>
 
@@ -42,21 +60,28 @@
 {
     UIView *_acquireSettingsView;
     
+    UIButton *_profileButton;
     UIButton *_authorityButton;
     UISegmentedControl *_validateAuthority;
     
     UITextField *_loginHintField;
+    UITextField* _extraQueryParamsField;
     UIButton *_userButton;
     UIButton *_scopesButton;
     
     UIButton *_acquireSilentButton;
     
-    UISegmentedControl *_uiBehavior;
+    UISegmentedControl *_promptType;
+    UISegmentedControl *_webviewSelection;
+    UISegmentedControl *_customWebViewSelection;
     
     UITextView *_resultView;
     
     NSLayoutConstraint *_bottomConstraint;
     NSLayoutConstraint *_bottomConstraint2;
+    
+    UIView* _authView;
+    WKWebView *_webView;
     
     BOOL _userIdEdited;
 }
@@ -127,6 +152,10 @@
     scrollView.userInteractionEnabled = YES;
     MSALTestAppAcquireLayoutBuilder *layout = [MSALTestAppAcquireLayoutBuilder new];
     
+    _profileButton = [self buttonWithTitle:[MSALTestAppProfileViewController currentTitle]
+                                    action:@selector(selectProfile:)];
+    [layout addControl:_profileButton title:@"profile"];
+    
     _authorityButton = [self buttonWithTitle:[MSALTestAppAuthorityViewController currentTitle]
                                       action:@selector(selectAuthority:)];
     [layout addControl:_authorityButton title:@"authority"];
@@ -146,29 +175,46 @@
                                    action:@selector(selectScope:)];
     [layout addControl:_scopesButton title:@"scopes"];
     
-    _uiBehavior = [[UISegmentedControl alloc] initWithItems:@[@"Select", @"Login", @"Consent"]];
-    _uiBehavior.selectedSegmentIndex = 0;
-    [layout addControl:_uiBehavior title:@"behavior"];
+    _promptType = [[UISegmentedControl alloc] initWithItems:@[@"Select", @"Login", @"Consent"]];
+    _promptType.selectedSegmentIndex = 0;
+    [layout addControl:_promptType title:@"behavior"];
     
+    //_webviewSelection
+    _webviewSelection = [[UISegmentedControl alloc] initWithItems:@[@"Embedded", @"System"]];
+    _webviewSelection.selectedSegmentIndex = 0;
+    [_webviewSelection addTarget:self action:@selector(webviewTypeChanged:) forControlEvents:UIControlEventValueChanged];
+    [layout addControl:_webviewSelection title:@"webview"];
     
+    _customWebViewSelection = [[UISegmentedControl alloc] initWithItems:@[@"MSAL", @"Passed In"]];
+    _customWebViewSelection.selectedSegmentIndex = 0;
+    [layout addControl:_customWebViewSelection title:@"embeddedWV"];
+    
+    _extraQueryParamsField = [[UITextField alloc] initWithFrame:CGRectMake(0, 0, 400, 20)];
+    _extraQueryParamsField.borderStyle = UITextBorderStyleRoundedRect;
+    _extraQueryParamsField.delegate = self;
+    [layout addControl:_extraQueryParamsField title:@"EQP"];
     
     UIButton *clearCache = [UIButton buttonWithType:UIButtonTypeSystem];
     [clearCache setTitle:@"Clear Cache" forState:UIControlStateNormal];
     [clearCache addTarget:self action:@selector(clearCache:) forControlEvents:UIControlEventTouchUpInside];
-
-    [layout addCenteredView:clearCache key:@"clearCache"];
     
     UIButton *telemetryButton = [UIButton buttonWithType:UIButtonTypeSystem];
     [telemetryButton setTitle:@"Show telemetry" forState:UIControlStateNormal];
     [telemetryButton addTarget:self action:@selector(showTelemetry:) forControlEvents:UIControlEventTouchUpInside];
     
-    [layout addCenteredView:telemetryButton key:@"telemetry"];
-    
     UIButton *stressTestButton = [UIButton buttonWithType:UIButtonTypeSystem];
     [stressTestButton setTitle:@"Stress test" forState:UIControlStateNormal];
     [stressTestButton addTarget:self action:@selector(runStressTest:) forControlEvents:UIControlEventTouchUpInside];
     
-    [layout addCenteredView:stressTestButton key:@"stressTest"];
+    UIStackView *stackView = [[UIStackView alloc] init];
+    stackView.axis = UILayoutConstraintAxisHorizontal;
+    stackView.alignment = UIStackViewAlignmentFill;
+    stackView.distribution = UIStackViewDistributionFill;
+    
+    [stackView addArrangedSubview:clearCache];
+    [stackView addArrangedSubview:telemetryButton];
+    [stackView addArrangedSubview:stressTestButton];
+    [layout addView:stackView key:@"stackview"];
     
     _resultView = [[UITextView alloc] init];
     _resultView.layer.borderWidth = 1.0f;
@@ -187,6 +233,11 @@
     [scrollView addConstraints:[NSLayoutConstraint constraintsWithVisualFormat:@"[contentView(==scrollView)]" options:0 metrics:nil views:views]];
     
     return scrollView;
+}
+
+- (void)webviewTypeChanged:(UISegmentedControl *)sender
+{
+    _customWebViewSelection.enabled = sender.selectedSegmentIndex == TEST_EMBEDDED_WEBVIEW_TYPE_INDEX;
 }
 
 - (UIView *)createAcquireButtonsView
@@ -221,6 +272,43 @@
     return acquireBlurView;
 }
 
+- (UIView *)createWebOverlay
+{
+    UIVisualEffect* blurEffect = [UIBlurEffect effectWithStyle:UIBlurEffectStyleLight];
+    UIVisualEffectView* blurView = [[UIVisualEffectView alloc] initWithEffect:blurEffect];
+    blurView.translatesAutoresizingMaskIntoConstraints = NO;
+    blurView.layer.borderWidth = 1.0f;
+    blurView.layer.borderColor = [UIColor colorWithRed:0.9f green:0.9f blue:0.9f alpha:1.0f].CGColor;
+    blurView.layer.cornerRadius = 8.0f;
+    blurView.clipsToBounds = YES;
+    
+    UIView* contentView = blurView.contentView;
+    
+    _webView = [[WKWebView alloc] init];
+    _webView.translatesAutoresizingMaskIntoConstraints = NO;
+    [contentView addSubview:_webView];
+    
+    UIButton *cancelButton = [UIButton buttonWithType:UIButtonTypeSystem];
+    cancelButton.translatesAutoresizingMaskIntoConstraints = NO;
+    [cancelButton setTitle:@"Cancel" forState:UIControlStateNormal];
+    [cancelButton addTarget:self action:@selector(cancelAuth:) forControlEvents:UIControlEventTouchUpInside];
+    [contentView addSubview:cancelButton];
+    
+    NSDictionary* views = @{ @"webView" : _webView, @"cancelButton" : cancelButton };
+    [contentView addConstraints:[NSLayoutConstraint constraintsWithVisualFormat:@"V:|-8-[webView]-[cancelButton]-8-|" options:0 metrics:nil views:views]];
+    [contentView addConstraints:[NSLayoutConstraint constraintsWithVisualFormat:@"H:|-8-[webView]-|" options:0 metrics:nil views:views]];
+    [contentView addConstraint:[NSLayoutConstraint constraintWithItem:cancelButton
+                                                            attribute:NSLayoutAttributeCenterX
+                                                            relatedBy:NSLayoutRelationEqual
+                                                               toItem:contentView
+                                                            attribute:NSLayoutAttributeCenterX
+                                                           multiplier:1.0
+                                                             constant:0.0]];
+    
+    return blurView;
+}
+
+
 
 - (void)loadView
 {
@@ -233,10 +321,16 @@
     UIView *acquireBlurView = [self createAcquireButtonsView];
     [mainView addSubview:acquireBlurView];
     
+    _authView = [self createWebOverlay];
+    _authView.hidden = YES;
+    [mainView addSubview:_authView];
+    
     self.view = mainView;
     
-    NSDictionary *views = @{ @"settings" : settingsView, @"acquire" : acquireBlurView };
+    NSDictionary *views = @{ @"settings" : settingsView, @"acquire" : acquireBlurView, @"authView" : _authView };
     // Set up constraints for the web overlay
+    [mainView addConstraints:[NSLayoutConstraint constraintsWithVisualFormat:@"V:|-34-[authView]-10-|" options:0 metrics:nil views:views]];
+    [mainView addConstraints:[NSLayoutConstraint constraintsWithVisualFormat:@"H:|-10-[authView]-10-|" options:0 metrics:nil views:views]];
     
     // Set up constraints to make the settings scroll view take up the whole screen
     [mainView addConstraints:[NSLayoutConstraint constraintsWithVisualFormat:@"H:|[settings]|" options:0 metrics:nil views:views]];
@@ -324,7 +418,7 @@
 {
     MSALTestAppSettings *settings = [MSALTestAppSettings settings];
     NSString *loginHint = settings.loginHint;
-    if (![NSString msalIsStringNilOrBlank:loginHint])
+    if (![NSString msidIsStringNilOrBlank:loginHint])
     {
         _loginHintField.text = loginHint;
     }
@@ -332,6 +426,8 @@
     self.navigationController.navigationBarHidden = YES;
     _validateAuthority.selectedSegmentIndex = settings.validateAuthority ? 0 : 1;
     
+    [_profileButton setTitle:[MSALTestAppProfileViewController currentTitle]
+                    forState:UIControlStateNormal];
     [_authorityButton setTitle:[MSALTestAppAuthorityViewController currentTitle]
                       forState:UIControlStateNormal];
     [_userButton setTitle:[MSALTestAppUserViewController currentTitle]
@@ -360,24 +456,24 @@
 
 - (void)updateResultView:(MSALResult *)result
 {
-    NSString *resultText = [NSString stringWithFormat:@"{\n\taccessToken = %@\n\texpiresOn = %@\n\ttenantId = %@\t\nuser = %@\t\nscopes = %@\n}",
-                            [result.accessToken msalShortSHA256Hex], result.expiresOn, result.tenantId, result.user, result.scopes];
+    NSString *resultText = [NSString stringWithFormat:@"{\n\taccessToken = %@\n\texpiresOn = %@\n\ttenantId = %@\n\tuser = %@\n\tscopes = %@\n\tauthority = %@\n}",
+                            [result.accessToken msidTokenHash], result.expiresOn, result.tenantId, result.account, result.scopes, result.authority];
     
     [_resultView setText:resultText];
     
     NSLog(@"%@", resultText);
 }
 
-- (MSALUIBehavior)uiBehavior
+- (MSALPromptType)promptType
 {
-    NSString *label = [_uiBehavior titleForSegmentAtIndex:_uiBehavior.selectedSegmentIndex];
+    NSString *label = [_promptType titleForSegmentAtIndex:_promptType.selectedSegmentIndex];
     
     if ([label isEqualToString:@"Select"])
-        return MSALSelectAccount;
+        return MSALPromptTypeSelectAccount;
     if ([label isEqualToString:@"Login"])
-        return MSALForceLogin;
+        return MSALPromptTypeLogin;
     if ([label isEqualToString:@"Consent"])
-        return MSALForceConsent;
+        return MSALPromptTypeConsent;
     
     @throw @"Do not recognize prompt behavior";
 }
@@ -385,14 +481,26 @@
 - (void)acquireTokenInteractive:(id)sender
 {
     (void)sender;
-    MSALTestAppSettings *settings = [MSALTestAppSettings settings];
-    NSString *authority = [settings authority];
-    NSString *clientId = TEST_APP_CLIENT_ID;
-    //NSURL* redirectUri = [settings redirectUri];
     
+    MSALTestAppSettings *settings = [MSALTestAppSettings settings];
+    NSDictionary *currentProfile = [settings profile];
+    NSString *clientId = [currentProfile objectForKey:MSAL_APP_CLIENT_ID];
+    NSString *redirectUri = [currentProfile objectForKey:MSAL_APP_REDIRECT_URI];
+    MSALAuthority *authority = [settings authority];
+    NSDictionary *extraQueryParameters = [NSDictionary msidDictionaryFromWWWFormURLEncodedString:_extraQueryParamsField.text];
+
     NSError *error = nil;
-    MSALPublicClientApplication *application = 
-    [[MSALPublicClientApplication alloc] initWithClientId:clientId authority:authority error:&error];
+    
+    MSALPublicClientApplicationConfig *pcaConfig = [[MSALPublicClientApplicationConfig alloc] initWithClientId:clientId
+                                                                                                   redirectUri:redirectUri
+                                                                                                     authority:authority];
+    if (_validateAuthority.selectedSegmentIndex == 1)
+    {
+        pcaConfig.knownAuthorities = @[pcaConfig.authority];
+    }
+    
+    MSALPublicClientApplication *application = [[MSALPublicClientApplication alloc] initWithConfiguration:pcaConfig error:&error];
+    
     if (!application)
     {
         NSString *resultText = [NSString stringWithFormat:@"Failed to create PublicClientApplication:\n%@", error];
@@ -400,42 +508,60 @@
         return;
     }
     
-    application.validateAuthority = (_validateAuthority.selectedSegmentIndex == 0);
-    
     __block BOOL fBlockHit = NO;
     
-    [application acquireTokenForScopes:[settings.scopes allObjects]
-                                  user:settings.currentUser
-                            uiBehavior:MSALUIBehaviorDefault
-                  extraQueryParameters:nil
-                       completionBlock:^(MSALResult *result, NSError *error)
-     {
-         if (fBlockHit)
-         {
-             dispatch_async(dispatch_get_main_queue(), ^{
-                 UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Error!"
-                                                                                message:@"Completion block was hit multiple times!"
-                                                                         preferredStyle:UIAlertControllerStyleAlert];
-                 [alert addAction:[UIAlertAction actionWithTitle:@"Close" style:UIAlertActionStyleDefault handler:nil]];
-                 [self presentViewController:alert animated:YES completion:nil];
-             });
-             
-             return;
-         }
-         fBlockHit = YES;
-         
-         dispatch_async(dispatch_get_main_queue(), ^{
-             if (result)
-             {
-                 [self updateResultView:result];
-             }
-             else
-             {
-                 [self updateResultViewError:error];
-             }
-             [[NSNotificationCenter defaultCenter] postNotificationName:MSALTestAppCacheChangeNotification object:self];
-         });
-     }];
+    void (^completionBlock)(MSALResult *result, NSError *error) = ^(MSALResult *result, NSError *error) {
+        
+        if (fBlockHit)
+        {
+            dispatch_async(dispatch_get_main_queue(), ^{
+                UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Error!"
+                                                                               message:@"Completion block was hit multiple times!"
+                                                                        preferredStyle:UIAlertControllerStyleAlert];
+                [alert addAction:[UIAlertAction actionWithTitle:@"Close" style:UIAlertActionStyleDefault handler:nil]];
+                [self presentViewController:alert animated:YES completion:nil];
+            });
+            
+            return;
+        }
+        fBlockHit = YES;
+        
+        dispatch_async(dispatch_get_main_queue(), ^{
+            
+            if (result)
+            {
+                [self updateResultView:result];
+            }
+            else
+            {
+                [self updateResultViewError:error];
+            }
+            
+            [_webView loadHTMLString:@"<html><head></head></html>" baseURL:nil];
+            [_authView setHidden:YES];
+            
+            [[NSNotificationCenter defaultCenter] postNotificationName:MSALTestAppCacheChangeNotification object:self];
+        });
+    };
+
+    
+    MSALInteractiveTokenParameters *parameters = [[MSALInteractiveTokenParameters alloc] initWithScopes:[settings.scopes allObjects]];
+    parameters.webviewType = _webviewSelection.selectedSegmentIndex == 0 ? MSALWebviewTypeWKWebView : MSALWebviewTypeDefault;
+    if (parameters.webviewType == MSALWebviewTypeWKWebView
+        && _customWebViewSelection.selectedSegmentIndex == TEST_EMBEDDED_WEBVIEW_CUSTOM)
+    {
+        parameters.customWebview = _webView;
+        
+        [_acquireSettingsView setHidden:YES];
+        [_authView setHidden:NO];
+    }
+        
+    parameters.loginHint = _loginHintField.text;
+    parameters.account = settings.currentAccount;
+    parameters.promptType = [self promptType];
+    parameters.extraQueryParameters = extraQueryParameters;
+    
+    [application acquireTokenWithParameters:parameters completionBlock:completionBlock];
 }
 
 - (IBAction)cancelAuth:(id)sender
@@ -450,7 +576,7 @@
     
     MSALTestAppSettings *settings = [MSALTestAppSettings settings];
     
-    if (!settings.currentUser)
+    if (!settings.currentAccount)
     {
         UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Error!"
                                                                        message:@"User needs to be selected for acquire token silent call"
@@ -460,13 +586,23 @@
         return;
     }
     
-    NSString *authority = [settings authority];
-    NSString *clientId = TEST_APP_CLIENT_ID;
+    NSDictionary *currentProfile = [settings profile];
+    NSString *clientId = [currentProfile objectForKey:MSAL_APP_CLIENT_ID];
+    NSString *redirectUri = [currentProfile objectForKey:MSAL_APP_REDIRECT_URI];
+    __auto_type authority = [settings authority];
     
     NSError *error = nil;
     
-    MSALPublicClientApplication *application =
-    [[MSALPublicClientApplication alloc] initWithClientId:clientId authority:authority error:&error];
+    MSALPublicClientApplicationConfig *pcaConfig = [[MSALPublicClientApplicationConfig alloc] initWithClientId:clientId
+                                                                                                   redirectUri:redirectUri
+                                                                                                     authority:authority];
+    
+    if (_validateAuthority.selectedSegmentIndex == 1)
+    {
+        pcaConfig.knownAuthorities = @[pcaConfig.authority];
+    }
+    
+    MSALPublicClientApplication *application = [[MSALPublicClientApplication alloc] initWithConfiguration:pcaConfig error:&error];
     if (!application)
     {
         NSString *resultText = [NSString stringWithFormat:@"Failed to create PublicClientApplication:\n%@", error];
@@ -474,14 +610,15 @@
         return;
     }
     
-    application.validateAuthority = (_validateAuthority.selectedSegmentIndex == 0);
-    
     __block BOOL fBlockHit = NO;
     _acquireSilentButton.enabled = NO;
     
-    [application acquireTokenSilentForScopes:[settings.scopes allObjects]
-                                        user:settings.currentUser
-                             completionBlock:^(MSALResult *result, NSError *error)
+    __auto_type scopes = [settings.scopes allObjects];
+    __auto_type account = settings.currentAccount;
+    MSALSilentTokenParameters *parameters = [[MSALSilentTokenParameters alloc] initWithScopes:scopes account:account];
+    parameters.authority = settings.authority;
+    
+    [application acquireTokenSilentWithParameters:parameters completionBlock:^(MSALResult *result, NSError *error)
     {
         if (fBlockHit)
         {
@@ -513,19 +650,31 @@
     }];
 }
 
-- (IBAction)clearCache:(id)sender
+- (IBAction)clearCache:(__unused id)sender
 {
-    (void)sender;
+    MSALTestAppSettings *settings = [MSALTestAppSettings settings];
     
-    NSDictionary *query = [[MSALKeychainTokenCache defaultKeychainCache] defaultKeychainQuery];
-    OSStatus status = SecItemDelete((CFDictionaryRef)query);
+    // Delete accounts.
+    NSDictionary *currentProfile = [settings profile];
+    NSString *clientId = [currentProfile objectForKey:MSAL_APP_CLIENT_ID];
+    NSString *redirectUri = [currentProfile objectForKey:MSAL_APP_REDIRECT_URI];
+    __auto_type authority = [settings authority];
     
-    if (status == errSecSuccess || status == errSecItemNotFound)
+    NSError *error = nil;
+    MSALPublicClientApplicationConfig *pcaConfig = [[MSALPublicClientApplicationConfig alloc] initWithClientId:clientId
+                                                                                                   redirectUri:redirectUri
+                                                                                                     authority:authority];
+    
+    MSALPublicClientApplication *application = [[MSALPublicClientApplication alloc] initWithConfiguration:pcaConfig
+                                                                                                    error:&error];
+    
+    BOOL result = [application.tokenCache clearWithContext:nil error:&error];
+    
+    if (result)
     {
         _resultView.text = @"Successfully cleared cache.";
         
-        MSALTestAppSettings *settings = [MSALTestAppSettings settings];
-        settings.currentUser = nil;
+        settings.currentAccount = nil;
         
         [_userButton setTitle:[MSALTestAppUserViewController currentTitle]
                      forState:UIControlStateNormal];
@@ -534,7 +683,7 @@
     }
     else
     {
-        _resultView.text = [NSString stringWithFormat:@"Failed to clear cache, error = %d", (int)status];
+        _resultView.text = [NSString stringWithFormat:@"Failed to clear cache, error = %@", error];
     }
 }
 
@@ -547,7 +696,13 @@
 - (IBAction)selectAuthority:(id)sender
 {
     (void)sender;
-    [self.navigationController pushViewController:[MSALTestAppAuthorityViewController sharedController] animated:YES];
+    [self.navigationController pushViewController:[MSALTestAppAuthorityTypeViewController sharedController] animated:YES];
+}
+
+- (IBAction)selectProfile:(id)sender
+{
+    (void)sender;
+    [self.navigationController pushViewController:[MSALTestAppProfileViewController sharedController] animated:YES];
 }
 
 - (IBAction)selectUser:(id)sender
@@ -629,20 +784,28 @@
         return;
     }
     
-    NSString *authority = [settings authority];
-    NSString *clientId = TEST_APP_CLIENT_ID;
+    NSDictionary *currentProfile = [settings profile];
+    NSString *clientId = [currentProfile objectForKey:MSAL_APP_CLIENT_ID];
+    NSString *redirectUri = [currentProfile objectForKey:MSAL_APP_REDIRECT_URI];
+    __auto_type authority = [settings authority];
     
     NSError *error = nil;
     
-    MSALPublicClientApplication *application = [[MSALPublicClientApplication alloc] initWithClientId:clientId authority:authority error:&error];
+    MSALPublicClientApplicationConfig *pcaConfig = [[MSALPublicClientApplicationConfig alloc] initWithClientId:clientId
+                                                                                                   redirectUri:redirectUri
+                                                                                                     authority:authority];
+
+    MSALPublicClientApplication *application = [[MSALPublicClientApplication alloc] initWithConfiguration:pcaConfig error:&error];
     
     if (!application)
     {
         _resultView.text = [NSString stringWithFormat:@"Failed to create PublicClientApplication:\n%@", error];
         return;
     }
-    
-    NSUInteger existingUserCount = [[application users:nil] count];
+
+    NSArray<MSALAccount *> *accounts = [application allAccounts:nil];
+
+    NSUInteger existingUserCount = [accounts count];
     NSUInteger requiredUserCount = [MSALStressTestHelper numberOfUsersNeededForTestType:type];
     
     if (existingUserCount != requiredUserCount)
@@ -652,7 +815,7 @@
     }
     
     [[MSALTestAppTelemetryViewController sharedController] stopTracking];
-    [[MSALLogger sharedLogger] setLevel:MSALLogLevelNothing];
+    MSALGlobalConfig.loggerConfig.logLevel = MSALLogLevelNothing;
     
     if ([MSALStressTestHelper runStressTestWithType:type application:application])
     {
@@ -671,7 +834,7 @@
     _resultView.text = [NSString stringWithFormat:@"Stopped the currently running stress test at %@", [NSDate date]];
     
     [[MSALTestAppTelemetryViewController sharedController] startTracking];
-    [[MSALLogger sharedLogger] setLevel:MSALLogLevelVerbose];
+    MSALGlobalConfig.loggerConfig.logLevel = MSALLogLevelVerbose;
 }
 
 @end

@@ -27,23 +27,29 @@
 
 #import <Foundation/Foundation.h>
 
-#define TEST_APP_CLIENT_ID @"3c62ac97-29eb-4aed-a3c8-add0298508da"
+@class MSALAuthority;
 
 extern NSString* MSALTestAppCacheChangeNotification;
 
 @interface MSALTestAppSettings : NSObject
 
-@property (nonatomic) NSString *authority;
-@property (nonatomic) MSALUser *currentUser;
+#define MSAL_APP_CLIENT_ID @"clientId"
+#define MSAL_APP_PROFILE @"profile"
+#define MSAL_APP_REDIRECT_URI @"redirectUri"
+
+@property (nonatomic) NSDictionary *profile;
+@property (nonatomic) MSALAuthority *authority;
+@property (nonatomic) MSALAccount *currentAccount;
 @property (nonatomic) NSString *loginHint;
 @property (nonatomic) BOOL validateAuthority;
 @property (nonatomic, readonly) NSSet<NSString *> *scopes;
 
 + (MSALTestAppSettings*)settings;
-
-+ (NSArray<NSString *> *)authorities;
-
++ (NSArray<NSString *> *)aadAuthorities;
++ (NSArray<NSString *> *)b2cAuthorities;
++ (NSArray<NSString *> *)authorityTypes;
 + (NSArray<NSString *> *)availableScopes;
++ (NSDictionary *)profiles;
 
 - (BOOL)addScope:(NSString *)scope;
 - (BOOL)removeScope:(NSString *)scope;

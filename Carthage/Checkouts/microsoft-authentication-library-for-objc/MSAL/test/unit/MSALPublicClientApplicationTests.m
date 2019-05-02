@@ -27,19 +27,52 @@
 
 #import "MSALTestCase.h"
 #import "MSALPublicClientApplication+Internal.h"
-#import "MSALBaseRequest+TestExtensions.h"
-#import "MSALTestSwizzle.h"
+#import "MSIDTestSwizzle.h"
 #import "MSALTestBundle.h"
-#import "MSALTestTokenCache.h"
-#import "MSALIdToken.h"
-#import "MSALClientInfo.h"
+#import "MSIDClientInfo.h"
 #import "MSALTestConstants.h"
-#import "MSALWebUI.h"
+#import "MSIDClientInfo.h"
+#import "NSDictionary+MSIDTestUtil.h"
+#import "MSIDKeychainTokenCache+MSIDTestsUtil.h"
+#import "MSIDDefaultTokenCacheAccessor.h"
+#import "MSIDAADV2TokenResponse.h"
+#import "MSIDAccount.h"
+#import "MSALAccount+Internal.h"
+#import "MSIDAADOauth2Factory.h"
+#import "MSIDAADV2IdTokenClaims.h"
+#import "MSIDAccountIdentifier.h"
+#import "NSURL+MSIDExtensions.h"
+#import "MSIDAccountCredentialCache.h"
+#import "MSALAccountId.h"
+#import "MSIDAADV2Oauth2Factory.h"
+#import "MSIDAADAuthority.h"
+#import "NSString+MSALTestUtil.h"
+#import "MSALAADAuthority.h"
+#import "MSALAuthority_Internal.h"
+#import "MSIDMacTokenCache.h"
+#import "MSIDAuthorityFactory.h"
+#import "MSIDTestURLResponse.h"
+#import "MSIDTestURLSession.h"
+#import "MSIDDeviceId.h"
+#import "MSIDAuthorityFactory.h"
+#import "MSIDAADNetworkConfiguration.h"
+#import "NSString+MSIDTestUtil.h"
+#import "MSIDLocalInteractiveController.h"
+#import "MSIDInteractiveRequestParameters.h"
+#import "MSALTelemetryApiId.h"
+#import "MSIDSilentController.h"
+#import "MSALRedirectUri.h"
+#import "MSIDAppMetadataCacheItem.h"
+#import "MSIDTestURLResponse+Util.h"
+#import "MSALSliceConfig.h"
+#import "MSALCacheConfig.h"
+#import "MSALB2CAuthority.h"
+#import "MSALAccountId+Internal.h"
 
 @interface MSALFakeInteractiveRequest : NSObject
 
 @property NSString *state;
-@property MSALRequestParameters *parameters;
+@property MSIDRequestParameters *parameters;
 
 @end
 
@@ -49,174 +82,328 @@
 
 @interface MSALPublicClientApplicationTests : MSALTestCase
 
+@property (nonatomic) MSIDClientInfo *clientInfo;
+@property (nonatomic) MSIDDefaultTokenCacheAccessor *tokenCacheAccessor;
+
 @end
 
 @implementation MSALPublicClientApplicationTests
 
-- (void)setUp {
+- (void)setUp
+{
     [super setUp];
-    // Put setup code here. This method is called before the invocation of each test method in the class.
+    
+    NSString *base64String = [@{ @"uid" : @"1", @"utid" : @"1234-5678-90abcdefg"} msidBase64UrlJson];
+    self.clientInfo = [[MSIDClientInfo alloc] initWithRawClientInfo:base64String error:nil];
+    
+    id<MSIDTokenCacheDataSource> dataSource = nil;
+    
+#if TARGET_OS_IPHONE
+    dataSource = MSIDKeychainTokenCache.defaultKeychainCache;
+#else
+    dataSource = MSIDMacTokenCache.defaultCache;
+#endif
+    
+    self.tokenCacheAccessor = [[MSIDDefaultTokenCacheAccessor alloc] initWithDataSource:dataSource otherCacheAccessors:nil];
+    [self.tokenCacheAccessor clearWithContext:nil error:nil];
+    
+    NSArray *override = @[ @{ @"CFBundleURLSchemes" : @[UNIT_TEST_DEFAULT_REDIRECT_SCHEME] } ];
+    [MSALTestBundle overrideObject:override forKey:@"CFBundleURLTypes"];
 }
 
-- (void)tearDown {
-    // Put teardown code here. This method is called after the invocation of each test method in the class.
+- (void)tearDown
+{
     [super tearDown];
 }
 
-- (void)testNilClientId
+#pragma mark - Init
+
+- (void)testInitWithClientId_whenClientIdIsNil_shouldReturnError
 {
     NSError *error = nil;
-    MSALPublicClientApplication *application =
-    [[MSALPublicClientApplication alloc] initWithClientId:nil
-                                                    error:&error];
+
+    NSString *clientId = nil;
+    
+    __auto_type application = [[MSALPublicClientApplication alloc] initWithClientId:clientId
+                                                                              error:&error];
     
     XCTAssertNil(application);
     XCTAssertNotNil(error);
-    XCTAssertEqual(error.code, MSALErrorInvalidParameter);
+    XCTAssertEqual(error.code, MSALErrorInternal);
+    NSInteger internalErrorCode = [error.userInfo[MSALInternalErrorCodeKey] integerValue];
+    XCTAssertEqual(internalErrorCode, MSALInternalErrorInvalidParameter);
     XCTAssertNotNil(error.userInfo);
     XCTAssertNotNil(error.userInfo[MSALErrorDescriptionKey]);
     XCTAssertTrue([error.userInfo[MSALErrorDescriptionKey] containsString:@"clientId"]);
     XCTAssertEqualObjects(error.domain, MSALErrorDomain);
 }
 
-- (void)testRedirectUriError
+- (void)testInitWithClientId_whenClientIdIsNotNil_shouldInit
+{
+    NSError *error = nil;
+    
+    __auto_type application = [[MSALPublicClientApplication alloc] initWithClientId:UNIT_TEST_CLIENT_ID
+                                                                              error:&error];
+    
+    XCTAssertNotNil(application);
+    XCTAssertNil(error);
+    XCTAssertEqualObjects(application.clientId, UNIT_TEST_CLIENT_ID);
+    XCTAssertEqualObjects(application.redirectUri.url.absoluteString, UNIT_TEST_DEFAULT_REDIRECT_URI);
+#if TARGET_OS_IPHONE
+    XCTAssertEqualObjects(application.keychainGroup, @"com.microsoft.adalcache");
+#endif
+    
+    XCTAssertEqualObjects(MSIDAADNetworkConfiguration.defaultConfiguration.aadApiVersion, @"v2.0");
+}
+
+- (void)testInitWithClientIdAndAuthority_whenValidClientIdAndAuthority_shouldReturnApplicationAndNilError
+{
+    NSArray *override = @[ @{ @"CFBundleURLSchemes" : @[UNIT_TEST_DEFAULT_REDIRECT_SCHEME] } ];
+    [MSALTestBundle overrideObject:override forKey:@"CFBundleURLTypes"];
+    MSALAuthority *authority = [@"https://login.microsoftonline.com/contoso.com" msalAuthority];
+    NSError *error = nil;
+    
+    __auto_type application = [[MSALPublicClientApplication alloc] initWithClientId:UNIT_TEST_CLIENT_ID
+                                                                          authority:authority
+                                                                              error:&error];
+    
+    XCTAssertNotNil(application);
+    XCTAssertNil(error);
+    XCTAssertEqualObjects(application.clientId, UNIT_TEST_CLIENT_ID);
+    XCTAssertEqualObjects(application.authority, authority);
+    XCTAssertEqualObjects(application.redirectUri.url.absoluteString, UNIT_TEST_DEFAULT_REDIRECT_URI);
+#if TARGET_OS_IPHONE
+    XCTAssertEqualObjects(application.keychainGroup, @"com.microsoft.adalcache");
+#endif
+}
+
+- (void)testInitWithClientIdAndAuthorityAndRedirectUri_whenValidClientIdAndAuthorityAndRedirectUri_shouldReturnApplicationAndNilError
+{
+    NSArray *override = @[ @{ @"CFBundleURLSchemes" : @[@"mycustom.redirect"] } ];
+    [MSALTestBundle overrideObject:override forKey:@"CFBundleURLTypes"];
+    MSALAuthority *authority = [@"https://login.microsoftonline.com/contoso.com" msalAuthority];
+    NSError *error = nil;
+    
+    __auto_type application = [[MSALPublicClientApplication alloc] initWithClientId:UNIT_TEST_CLIENT_ID
+                                                                          authority:authority
+                                                                        redirectUri:@"mycustom.redirect://bundle_id"
+                                                                              error:&error];
+    
+    XCTAssertNotNil(application);
+    XCTAssertNil(error);
+    XCTAssertEqualObjects(application.clientId, UNIT_TEST_CLIENT_ID);
+    XCTAssertEqualObjects(application.authority, authority);
+    XCTAssertEqualObjects(application.redirectUri.url.absoluteString, @"mycustom.redirect://bundle_id");
+#if TARGET_OS_IPHONE
+    XCTAssertEqualObjects(application.keychainGroup, @"com.microsoft.adalcache");
+#endif
+}
+
+#if TARGET_OS_IPHONE
+
+- (void)testInitWithClientId_whenSchemeNotRegistered_shouldReturnNilApplicationAndFillError
 {
     // By default the initializer for MSALPublicClientApplication should fail due to the redirect URI
     // not being listed in the info plist
     NSArray* override = @[ @{ @"CFBundleURLSchemes" : @[] } ];
     [MSALTestBundle overrideObject:override forKey:@"CFBundleURLTypes"];
-    
     NSError *error = nil;
-    MSALPublicClientApplication *application =
-    [[MSALPublicClientApplication alloc] initWithClientId:UNIT_TEST_CLIENT_ID
-                                                    error:&error];
+    
+    __auto_type application = [[MSALPublicClientApplication alloc] initWithClientId:UNIT_TEST_CLIENT_ID
+                                                                              error:&error];
     
     XCTAssertNil(application);
     XCTAssertNotNil(error);
-    XCTAssertEqual(error.code, MSALErrorRedirectSchemeNotRegistered);
+    XCTAssertEqual(error.code, MSALErrorInternal);
+    NSInteger internalErrorCode = [error.userInfo[MSALInternalErrorCodeKey] integerValue];
+    XCTAssertEqual(internalErrorCode, MSALInternalErrorRedirectSchemeNotRegistered);
     XCTAssertEqualObjects(error.domain, MSALErrorDomain);
 }
 
-- (void)testInit
+- (void)testInitWithClientIdAndAuthorityAndRedirectUri_whenInvalidSchemeRegistered_shouldReturnNilApplicationAndFillError
+{
+    NSArray *override = @[ @{ @"CFBundleURLSchemes" : @[@"mycustom.redirect"] } ];
+    [MSALTestBundle overrideObject:override forKey:@"CFBundleURLTypes"];
+    MSALAuthority *authority = [@"https://login.microsoftonline.com/contoso.com" msalAuthority];
+    NSError *error = nil;
+    
+    __auto_type application = [[MSALPublicClientApplication alloc] initWithClientId:UNIT_TEST_CLIENT_ID
+                                                                          authority:authority
+                                                                        redirectUri:@"mycustom.wrong.redirect://bundle_id"
+                                                                              error:&error];
+    
+    XCTAssertNil(application);
+    XCTAssertNotNil(error);
+}
+
+- (void)testInitWithClientIdAndKeychainGroup_whenAllValidParameters_shouldReturnApplicationAndNilError
 {
     NSError *error = nil;
-
-    NSArray *override = @[ @{ @"CFBundleURLSchemes" : @[UNIT_TEST_DEFAULT_REDIRECT_SCHEME] } ];
-    [MSALTestBundle overrideObject:override forKey:@"CFBundleURLTypes"];
     
-    MSALPublicClientApplication *application =
-    [[MSALPublicClientApplication alloc] initWithClientId:UNIT_TEST_CLIENT_ID
-                                                    error:&error];
+    __auto_type application = [[MSALPublicClientApplication alloc] initWithClientId:UNIT_TEST_CLIENT_ID
+                                                                      keychainGroup:@"com.contoso.msalcache"
+                                                                              error:&error];
     
     XCTAssertNotNil(application);
     XCTAssertNil(error);
     XCTAssertEqualObjects(application.clientId, UNIT_TEST_CLIENT_ID);
-    XCTAssertEqualObjects(application.redirectUri.absoluteString, UNIT_TEST_DEFAULT_REDIRECT_URI);
-    
-    application = nil;
+    XCTAssertEqualObjects(application.redirectUri.url.absoluteString, UNIT_TEST_DEFAULT_REDIRECT_URI);
+    XCTAssertEqualObjects(application.keychainGroup, @"com.contoso.msalcache");
 }
 
-- (void)testHandleMSALResponse_whenInvalid_returnsNo
+- (void)testInitWithClientIdAndAuthorityAndKeychainGroup_whenAllValidParameters_shouldReturnApplicationAndNilError
 {
-    __block MSALFakeInteractiveRequest *request = nil;
-    [MSALTestSwizzle classMethod:@selector(currentActiveRequest)
-                           class:[MSALInteractiveRequest class]
-                           block:(id)^id(id obj)
-     {
-         (void)obj;
-         return request;
-     }];
-
-    XCTAssertFalse([MSALPublicClientApplication handleMSALResponse:nil]);
-    XCTAssertFalse([MSALPublicClientApplication handleMSALResponse:[NSURL URLWithString:@"https://host"]]);
-    XCTAssertFalse([MSALPublicClientApplication handleMSALResponse:[NSURL URLWithString:@"https://host/resp"]]);
+    MSALAuthority *authority = [@"https://login.microsoftonline.com/contoso.com" msalAuthority];
+    NSError *error = nil;
     
-    request = [MSALFakeInteractiveRequest new];
-    XCTAssertFalse([MSALPublicClientApplication handleMSALResponse:[NSURL URLWithString:@"https://host/msal"]]);
-    XCTAssertFalse([MSALPublicClientApplication handleMSALResponse:[NSURL URLWithString:@"https://host/msal?"]]);
-    XCTAssertFalse([MSALPublicClientApplication handleMSALResponse:[NSURL URLWithString:@"https://host/?code=iamacode"]]);
-    XCTAssertFalse([MSALPublicClientApplication handleMSALResponse:[NSURL URLWithString:@"https://host/msal?error=iamaerror&error_description=evenmoreinfo"]]);
-    XCTAssertFalse([MSALPublicClientApplication handleMSALResponse:[NSURL URLWithString:@"https://host/?code=iamacode&state=fake_state"]]);
-    XCTAssertFalse([MSALPublicClientApplication handleMSALResponse:[NSURL URLWithString:@"https://host/msal?error=iamaerror&error_description=evenmoreinfo&state=fake_state"]]);
+    __auto_type application = [[MSALPublicClientApplication alloc] initWithClientId:UNIT_TEST_CLIENT_ID
+                                                                      keychainGroup:@"com.contoso.msalcache"
+                                                                          authority:authority
+                                                                              error:&error];
     
-    request.state = @"some_other_state";
-    XCTAssertFalse([MSALPublicClientApplication handleMSALResponse:[NSURL URLWithString:@"https://host/?code=iamacode&state=fake_state"]]);
-    XCTAssertFalse([MSALPublicClientApplication handleMSALResponse:[NSURL URLWithString:@"https://host/msal?error=iamaerror&error_description=evenmoreinfo&state=fake_state"]]);
+    XCTAssertNotNil(application);
+    XCTAssertNil(error);
+    XCTAssertEqualObjects(application.clientId, UNIT_TEST_CLIENT_ID);
+    XCTAssertEqualObjects(application.authority, authority);
+    XCTAssertEqualObjects(application.redirectUri.url.absoluteString, UNIT_TEST_DEFAULT_REDIRECT_URI);
+    XCTAssertEqualObjects(application.keychainGroup, @"com.contoso.msalcache");
 }
 
-- (void)testHandleMSALResponse_whenValid_returnsYesAndHandlesResponse
+- (void)testInitWithClientIdAndAuthorityAndRedirectUriAndKeychainGroup_whenAllValidParameters_shouldReturnApplicationAndNilError
 {
-    __block MSALFakeInteractiveRequest *request = [MSALFakeInteractiveRequest new];
-    [MSALTestSwizzle classMethod:@selector(currentActiveRequest)
-                           class:[MSALInteractiveRequest class]
-                           block:(id)^id(id obj)
-     {
-         (void)obj;
-         return request;
-     }];
+    NSArray *override = @[ @{ @"CFBundleURLSchemes" : @[@"mycustom.redirect"] } ];
+    [MSALTestBundle overrideObject:override forKey:@"CFBundleURLTypes"];
+    MSALAuthority *authority = [@"https://login.microsoftonline.com/contoso.com" msalAuthority];
+    NSError *error = nil;
     
-    [MSALTestSwizzle classMethod:@selector(handleResponse:)
-                           class:[MSALWebUI class]
-                           block:(id)^BOOL(id obj, NSURL *url)
-     {
-         (void)obj;
-         (void)url;
-         return YES;
-     }];
+    __auto_type application = [[MSALPublicClientApplication alloc] initWithClientId:UNIT_TEST_CLIENT_ID
+                                                                      keychainGroup:@"com.contoso.msalcache"
+                                                                          authority:authority
+                                                                        redirectUri:@"mycustom.redirect://bundle_id"
+                                                                              error:&error];
     
-    request.state = @"fake_state";
-    XCTAssertTrue([MSALPublicClientApplication handleMSALResponse:[NSURL URLWithString:@"https://host/?code=iamacode&state=fake_state"]]);
-    XCTAssertTrue([MSALPublicClientApplication handleMSALResponse:[NSURL URLWithString:@"https://host/msal?error=iamaerror&error_description=evenmoreinfo&state=fake_state"]]);
+    XCTAssertNotNil(application);
+    XCTAssertNil(error);
+    XCTAssertEqualObjects(application.clientId, UNIT_TEST_CLIENT_ID);
+    XCTAssertEqualObjects(application.authority, authority);
+    XCTAssertEqualObjects(application.redirectUri.url.absoluteString, @"mycustom.redirect://bundle_id");
+    XCTAssertEqualObjects(application.keychainGroup, @"com.contoso.msalcache");
 }
 
-#pragma 
+- (void)testInitWithClientId_whenKeychainGroupNotSpecified_shouldHaveDefaultKeychainGroup
+{
+    NSArray *override = @[ @{ @"CFBundleURLSchemes" : @[UNIT_TEST_DEFAULT_REDIRECT_SCHEME] } ];
+    [MSALTestBundle overrideObject:override forKey:@"CFBundleURLTypes"];
+
+    MSALPublicClientApplication *app = [[MSALPublicClientApplication alloc] initWithClientId:UNIT_TEST_CLIENT_ID error:nil];
+    XCTAssertEqualObjects(app.keychainGroup, MSIDKeychainTokenCache.defaultKeychainGroup);
+}
+
+- (void)testInitWithClientIdAndAuthority_whenKeychainGroupNotSpecified_shouldHaveDefaultKeychainGroup
+{
+    NSArray *override = @[ @{ @"CFBundleURLSchemes" : @[UNIT_TEST_DEFAULT_REDIRECT_SCHEME] } ];
+    [MSALTestBundle overrideObject:override forKey:@"CFBundleURLTypes"];
+
+    MSALAuthority *authority = [@"https://login.microsoftonline.com/contoso.com" msalAuthority];
+    MSALPublicClientApplication *app = [[MSALPublicClientApplication alloc] initWithClientId:UNIT_TEST_CLIENT_ID authority:authority error:nil];
+    XCTAssertEqualObjects(app.keychainGroup, MSIDKeychainTokenCache.defaultKeychainGroup);
+}
+
+- (void)testInitWithClientIdAndAuthorityAndRedirectUri_whenKeychainGroupNotSpecified_shouldHaveDefaultKeychainGroup
+{
+    NSArray *override = @[ @{ @"CFBundleURLSchemes" : @[@"mycustom.redirect"] } ];
+    [MSALTestBundle overrideObject:override forKey:@"CFBundleURLTypes"];
+
+    MSALAuthority *authority = [@"https://login.microsoftonline.com/contoso.com" msalAuthority];
+    MSALPublicClientApplication *app = [[MSALPublicClientApplication alloc] initWithClientId:UNIT_TEST_CLIENT_ID authority:authority redirectUri:@"mycustom.redirect://bundle_id" error:nil];
+    XCTAssertEqualObjects(app.keychainGroup, MSIDKeychainTokenCache.defaultKeychainGroup);
+}
+
+
+
+- (void)testInitWithClientIdAndAuthorityAndRedirectUriAndKeychainGroup_whenKeychainGroupSpecifiedNil_shouldHaveKeychainGroupWithBundleId
+{
+    NSArray *override = @[ @{ @"CFBundleURLSchemes" : @[@"mycustom.redirect"] } ];
+    [MSALTestBundle overrideObject:override forKey:@"CFBundleURLTypes"];
+
+    MSALAuthority *authority = [@"https://login.microsoftonline.com/contoso.com" msalAuthority];
+    
+    MSALPublicClientApplication *application =
+    [[MSALPublicClientApplication alloc] initWithClientId:UNIT_TEST_CLIENT_ID
+                                            keychainGroup:nil
+                                                authority:authority
+                                              redirectUri:@"mycustom.redirect://bundle_id"
+                                                    error:nil];
+    
+    XCTAssertEqualObjects(application.keychainGroup, [[NSBundle mainBundle] bundleIdentifier]);
+}
+
+- (void)testInitWithClientIdAndAuthorityAndRedirectUriAndKeychainGroup_whenKeychainGroupCustomSpecified_shouldHaveCustomKeychainGroup
+{
+    NSArray *override = @[ @{ @"CFBundleURLSchemes" : @[@"mycustom.redirect"] } ];
+    [MSALTestBundle overrideObject:override forKey:@"CFBundleURLTypes"];
+
+    MSALAuthority *authority = [@"https://login.microsoftonline.com/contoso.com" msalAuthority];
+    
+    MSALPublicClientApplication *application =
+    [[MSALPublicClientApplication alloc] initWithClientId:UNIT_TEST_CLIENT_ID
+                                            keychainGroup:@"com.contoso.msalcache"
+                                                authority:authority
+                                              redirectUri:@"mycustom.redirect://bundle_id"
+                                                    error:nil];
+    
+    XCTAssertEqualObjects(application.keychainGroup, @"com.contoso.msalcache");
+}
+#endif
+
 #pragma mark - acquireToken
 
 - (void)testAcquireTokenScopes
 {
+    __auto_type authority = [@"https://login.microsoftonline.com/common" msalAuthority];
+    
+    MSALPublicClientApplicationConfig *config = [[MSALPublicClientApplicationConfig alloc] initWithClientId:UNIT_TEST_CLIENT_ID redirectUri:nil authority:authority];
+    config.sliceConfig = [MSALSliceConfig configWithSlice:@"slice" dc:@"dc"];
+    
     NSError *error = nil;
-
-    NSArray *override = @[ @{ @"CFBundleURLSchemes" : @[UNIT_TEST_DEFAULT_REDIRECT_SCHEME] } ];
-    [MSALTestBundle overrideObject:override forKey:@"CFBundleURLTypes"];
-    
-    MSALPublicClientApplication *application =
-    [[MSALPublicClientApplication alloc] initWithClientId:UNIT_TEST_CLIENT_ID
-                                                authority:@"https://login.microsoftonline.com/common"
-                                                    error:&error];
-    application.sliceParameters = @{ @"slice" : @"myslice" };
-    
+    __auto_type application = [[MSALPublicClientApplication alloc] initWithConfiguration:config
+                                                                                   error:&error];
     XCTAssertNotNil(application);
     XCTAssertNil(error);
     
     __block dispatch_semaphore_t dsem = dispatch_semaphore_create(0);
     
-    [MSALTestSwizzle instanceMethod:@selector(run:)
-                              class:[MSALBaseRequest class]
-                              block:(id)^(MSALInteractiveRequest *obj, MSALCompletionBlock completionBlock)
+    [MSIDTestSwizzle instanceMethod:@selector(acquireToken:)
+                              class:[MSIDLocalInteractiveController class]
+                              block:(id)^(MSIDLocalInteractiveController *obj, MSIDRequestCompletionBlock completionBlock)
      {
-         XCTAssertTrue([obj isKindOfClass:[MSALInteractiveRequest class]]);
-         MSALRequestParameters *params = [obj parameters];
+         XCTAssertTrue([obj isKindOfClass:[MSIDLocalInteractiveController class]]);
+         MSIDInteractiveRequestParameters *params = [obj interactiveRequestParamaters];
          XCTAssertNotNil(params);
-         
-         XCTAssertEqual(params.apiId, MSALTelemetryApiIdAcquire);
-         XCTAssertEqualObjects(params.unvalidatedAuthority, [NSURL URLWithString:@"https://login.microsoftonline.com/common"]);
-         XCTAssertEqualObjects(params.scopes, [NSOrderedSet orderedSetWithObject:@"fakescope"]);
+
+         NSString *expectedTelemetryAPIId = [NSString stringWithFormat:@"%ld", (long)MSALTelemetryApiIdAcquire];
+         XCTAssertEqualObjects(params.telemetryApiId, expectedTelemetryAPIId);
+         XCTAssertEqualObjects(params.authority, [@"https://login.microsoftonline.com/common" msalAuthority].msidAuthority);
+         XCTAssertEqualObjects(params.target, @"fakescope");
+         XCTAssertEqualObjects(params.oidcScope, @"openid profile offline_access");
          XCTAssertEqualObjects(params.clientId, UNIT_TEST_CLIENT_ID);
-         XCTAssertEqualObjects(params.redirectUri, [NSURL URLWithString:UNIT_TEST_DEFAULT_REDIRECT_URI]);
-         XCTAssertEqualObjects(params.sliceParameters, @{ @"slice" : @"myslice" });
-         XCTAssertNil(params.extraQueryParameters);
+         XCTAssertEqualObjects(params.redirectUri, UNIT_TEST_DEFAULT_REDIRECT_URI);
+         XCTAssertEqualObjects(params.extraURLQueryParameters, (@{ @"slice" : @"slice", @"dc" : @"dc" }));
+         XCTAssertTrue(params.extraAuthorizeURLQueryParameters.count == 0);
          XCTAssertNil(params.loginHint);
-         XCTAssertNil(params.component);
+         XCTAssertEqualObjects(params.logComponent, @"MSAL");
          XCTAssertNotNil(params.correlationId);
          
          completionBlock(nil, nil);
      }];
-    
+#if TARGET_OS_IPHONE
+    MSALGlobalConfig.brokerAvailability = MSALBrokeredAvailabilityNone;
+#endif
     [application acquireTokenForScopes:@[@"fakescope"]
                        completionBlock:^(MSALResult *result, NSError *error)
      {
          XCTAssertNil(result);
-         XCTAssertNil(error);
+         XCTAssertNotNil(error);
          
          dispatch_semaphore_signal(dsem);
      }];
@@ -225,360 +412,558 @@
     application = nil;
 }
 
-#pragma
+#pragma mark - Known authorities
+
+- (void)testAcquireToken_whenKnownAADAuthority_shouldValidate
+{
+    __auto_type authority = [@"https://login.microsoftonline.com/common" msalAuthority];
+    
+    MSALPublicClientApplicationConfig *config = [[MSALPublicClientApplicationConfig alloc] initWithClientId:UNIT_TEST_CLIENT_ID redirectUri:nil authority:authority];
+    config.knownAuthorities = @[authority];
+    
+    NSError *error = nil;
+    MSALPublicClientApplication *application = [[MSALPublicClientApplication alloc] initWithConfiguration:config error:&error];
+    
+    XCTAssertNotNil(application);
+    XCTAssertNil(error);
+    
+    [MSIDTestSwizzle instanceMethod:@selector(acquireToken:)
+                              class:[MSIDLocalInteractiveController class]
+                              block:(id)^(MSIDLocalInteractiveController *obj, MSIDRequestCompletionBlock completionBlock)
+     {
+         XCTAssertTrue([obj isKindOfClass:[MSIDLocalInteractiveController class]]);
+         
+         MSIDInteractiveRequestParameters *params = [obj interactiveRequestParamaters];
+         XCTAssertNotNil(params);
+         
+         XCTAssertTrue(params.validateAuthority);
+         completionBlock(nil, nil);
+     }];
+    
+#if TARGET_OS_IPHONE
+    MSALGlobalConfig.brokerAvailability = MSALBrokeredAvailabilityNone;
+#endif
+    
+    [application acquireTokenForScopes:@[@"fakescope1", @"fakescope2"]
+                             loginHint:@"fakeuser@contoso.com"
+                       completionBlock:^(MSALResult *result, NSError *error)
+     {
+         XCTAssertNil(result);
+         XCTAssertNotNil(error);
+     }];
+}
+
+- (void)testAcquireToken_whenKnownB2CAuthority_shouldNotValidate
+{
+    NSURL *authorityURL = [NSURL URLWithString:@"https://myb2c.authority.com/mypath/mypath2/mypolicy/mypolicy2?policyId=queryParam"];
+    MSALB2CAuthority *b2cAuthority = [[MSALB2CAuthority alloc] initWithURL:authorityURL error:nil];
+    
+    MSALPublicClientApplicationConfig *config = [[MSALPublicClientApplicationConfig alloc] initWithClientId:UNIT_TEST_CLIENT_ID redirectUri:nil authority:b2cAuthority];
+    config.knownAuthorities = @[b2cAuthority];
+    
+    NSError *error = nil;
+    MSALPublicClientApplication *application = [[MSALPublicClientApplication alloc] initWithConfiguration:config error:&error];
+    
+    XCTAssertNotNil(application);
+    XCTAssertNil(error);
+    
+    [MSIDTestSwizzle instanceMethod:@selector(acquireToken:)
+                              class:[MSIDLocalInteractiveController class]
+                              block:(id)^(MSIDLocalInteractiveController *obj, MSIDRequestCompletionBlock completionBlock)
+     {
+         XCTAssertTrue([obj isKindOfClass:[MSIDLocalInteractiveController class]]);
+         
+         MSIDInteractiveRequestParameters *params = [obj interactiveRequestParamaters];
+         XCTAssertNotNil(params);
+         
+         XCTAssertFalse(params.validateAuthority);
+         XCTAssertEqualObjects(params.authority.url.absoluteString, @"https://myb2c.authority.com/mypath/mypath2/mypolicy/mypolicy2");
+         completionBlock(nil, nil);
+     }];
+    
+#if TARGET_OS_IPHONE
+    MSALGlobalConfig.brokerAvailability = MSALBrokeredAvailabilityNone;
+#endif
+    
+    [application acquireTokenForScopes:@[@"fakescope1", @"fakescope2"]
+                             loginHint:@"fakeuser@contoso.com"
+                       completionBlock:^(MSALResult *result, NSError *error)
+     {
+         XCTAssertNil(result);
+         XCTAssertNotNil(error);
+     }];
+}
+
+- (void)testAcquireTokenSilent_whenKnownB2CAuthority_shouldNotValidate
+{
+    NSURL *authorityURL = [NSURL URLWithString:@"https://contoso.b2clogin.com/tfp/contoso.onmicrosoft.com/B2C_1_signup-signin"];
+    MSALB2CAuthority *b2cAuthority = [[MSALB2CAuthority alloc] initWithURL:authorityURL error:nil];
+    
+    MSALPublicClientApplicationConfig *config = [[MSALPublicClientApplicationConfig alloc] initWithClientId:UNIT_TEST_CLIENT_ID redirectUri:nil authority:b2cAuthority];
+    config.knownAuthorities = @[b2cAuthority];
+    
+    NSError *error = nil;
+    MSALPublicClientApplication *application = [[MSALPublicClientApplication alloc] initWithConfiguration:config error:&error];
+    
+    XCTAssertNotNil(application);
+    XCTAssertNil(error);
+    
+#if TARGET_OS_IPHONE
+    MSALGlobalConfig.brokerAvailability = MSALBrokeredAvailabilityNone;
+#endif
+    
+    [MSIDTestSwizzle instanceMethod:@selector(acquireToken:)
+                              class:[MSIDSilentController class]
+                              block:(id)^(MSIDSilentController *obj, MSIDRequestCompletionBlock completionBlock)
+     {
+         XCTAssertTrue([obj isKindOfClass:[MSIDSilentController class]]);
+         
+         MSIDRequestParameters *params = [obj requestParameters];
+         XCTAssertNotNil(params);
+         
+         XCTAssertFalse(params.validateAuthority);
+         XCTAssertEqualObjects(params.authority.url.absoluteString, @"https://contoso.b2clogin.com/tfp/utid/B2C_1_signup-signin");
+         completionBlock(nil, nil);
+     }];
+    
+    MSALAccount *account = [MSALAccount new];
+    MSALAccountId *accountId = [[MSALAccountId alloc] initWithAccountIdentifier:@"uid.utid" objectId:@"uid" tenantId:@"utid"];
+    [account setValue:accountId forKey:@"homeAccountId"];
+    [account setValue:@"myb2c.authority.com" forKey:@"environment"];
+    
+    [application acquireTokenSilentForScopes:@[@"fakescope1", @"fakescope2"]
+                                     account:account
+                             completionBlock:^(MSALResult * _Nullable result, NSError * _Nullable error) {
+        
+                                 XCTAssertNil(result);
+                                 XCTAssertNotNil(error);
+    }];
+}
+
+- (void)testAcquireTokenSilent_whenNoTfpAuthority_shouldNotValidate
+{
+    NSURL *authorityURL = [NSURL URLWithString:@"https://contoso.b2clogin.com/contoso.onmicrosoft.com/nontfp_path/B2C_1_signup-signin"];
+    MSALB2CAuthority *b2cAuthority = [[MSALB2CAuthority alloc] initWithURL:authorityURL error:nil];
+    
+    MSALPublicClientApplicationConfig *config = [[MSALPublicClientApplicationConfig alloc] initWithClientId:UNIT_TEST_CLIENT_ID redirectUri:nil authority:b2cAuthority];
+    config.knownAuthorities = @[b2cAuthority];
+    
+    NSError *error = nil;
+    MSALPublicClientApplication *application = [[MSALPublicClientApplication alloc] initWithConfiguration:config error:&error];
+    
+    XCTAssertNotNil(application);
+    XCTAssertNil(error);
+    
+#if TARGET_OS_IPHONE
+    MSALGlobalConfig.brokerAvailability = MSALBrokeredAvailabilityNone;
+#endif
+    
+    [MSIDTestSwizzle instanceMethod:@selector(acquireToken:)
+                              class:[MSIDSilentController class]
+                              block:(id)^(MSIDSilentController *obj, MSIDRequestCompletionBlock completionBlock)
+     {
+         XCTAssertTrue([obj isKindOfClass:[MSIDSilentController class]]);
+         
+         MSIDRequestParameters *params = [obj requestParameters];
+         XCTAssertNotNil(params);
+         
+         XCTAssertFalse(params.validateAuthority);
+         XCTAssertEqualObjects(params.authority.url.absoluteString, @"https://contoso.b2clogin.com/contoso.onmicrosoft.com/nontfp_path/B2C_1_signup-signin");
+         completionBlock(nil, nil);
+     }];
+    
+    MSALAccount *account = [MSALAccount new];
+    MSALAccountId *accountId = [[MSALAccountId alloc] initWithAccountIdentifier:@"uid.utid" objectId:@"uid" tenantId:@"utid"];
+    [account setValue:accountId forKey:@"homeAccountId"];
+    [account setValue:@"myb2c.authority.com" forKey:@"environment"];
+    
+    [application acquireTokenSilentForScopes:@[@"fakescope1", @"fakescope2"]
+                                     account:account
+                             completionBlock:^(MSALResult * _Nullable result, NSError * _Nullable error) {
+                                 
+                                 XCTAssertNil(result);
+                                 XCTAssertNotNil(error);
+                             }];
+}
+
 #pragma mark - acquireToken using Login Hint
 
 - (void)testAcquireScopesLoginHint
 {
-    NSError *error = nil;
-
-    NSArray *override = @[ @{ @"CFBundleURLSchemes" : @[UNIT_TEST_DEFAULT_REDIRECT_SCHEME] } ];
-    [MSALTestBundle overrideObject:override forKey:@"CFBundleURLTypes"];
+    __auto_type authority = [@"https://login.microsoftonline.com/common" msalAuthority];
     
-    MSALPublicClientApplication *application =
-    [[MSALPublicClientApplication alloc] initWithClientId:UNIT_TEST_CLIENT_ID
-                                                authority:@"https://login.microsoftonline.com/common"
-                                                    error:&error];
-    application.component = @"unittests";
-    application.sliceParameters = @{ @"slice" : @"myslice" };
+    MSALPublicClientApplicationConfig *config = [[MSALPublicClientApplicationConfig alloc] initWithClientId:UNIT_TEST_CLIENT_ID
+                                                                                                redirectUri:nil
+                                                                                                  authority:authority];
+    config.sliceConfig = [MSALSliceConfig configWithSlice:@"slice" dc:@"dc"];
+    
+    NSError *error = nil;
+    __auto_type application = [[MSALPublicClientApplication alloc] initWithConfiguration:config
+                                                                                   error:&error];
+    
     
     XCTAssertNotNil(application);
     XCTAssertNil(error);
     
-    [MSALTestSwizzle instanceMethod:@selector(run:)
-                              class:[MSALBaseRequest class]
-                              block:(id)^(MSALInteractiveRequest *obj, MSALCompletionBlock completionBlock)
+    [MSIDTestSwizzle instanceMethod:@selector(acquireToken:)
+                              class:[MSIDLocalInteractiveController class]
+                              block:(id)^(MSIDLocalInteractiveController *obj, MSIDRequestCompletionBlock completionBlock)
      {
-         XCTAssertTrue([obj isKindOfClass:[MSALInteractiveRequest class]]);
-         
-         XCTAssertNil(obj.extraScopesToConsent);
-         XCTAssertEqual(obj.uiBehavior, MSALUIBehaviorDefault);
-         
-         MSALRequestParameters *params = [obj parameters];
+         XCTAssertTrue([obj isKindOfClass:[MSIDLocalInteractiveController class]]);
+
+         MSIDInteractiveRequestParameters *params = [obj interactiveRequestParamaters];
          XCTAssertNotNil(params);
-         
-         XCTAssertEqual(params.apiId, MSALTelemetryApiIdAcquireWithHint);
-         XCTAssertEqualObjects(params.unvalidatedAuthority.absoluteString, @"https://login.microsoftonline.com/common");
-         XCTAssertEqualObjects(params.scopes, ([NSOrderedSet orderedSetWithObjects:@"fakescope1", @"fakescope2", nil]));
+
+         NSString *expectedApiId = [NSString stringWithFormat:@"%ld", (long)MSALTelemetryApiIdAcquireWithHint];
+         XCTAssertEqualObjects(params.telemetryApiId, expectedApiId);
+         XCTAssertEqualObjects(params.authority.url.absoluteString, @"https://login.microsoftonline.com/common");
+         XCTAssertEqualObjects(params.target, @"fakescope1 fakescope2");
+         XCTAssertEqualObjects(params.oidcScope, @"openid profile offline_access");
          XCTAssertEqualObjects(params.clientId, UNIT_TEST_CLIENT_ID);
-         XCTAssertEqualObjects(params.redirectUri.absoluteString, UNIT_TEST_DEFAULT_REDIRECT_URI);
-         XCTAssertEqualObjects(params.sliceParameters, @{ @"slice" : @"myslice" });
+         XCTAssertEqualObjects(params.redirectUri, UNIT_TEST_DEFAULT_REDIRECT_URI);
+         XCTAssertEqualObjects(params.extraURLQueryParameters, (@{ @"slice" : @"slice", @"dc" : @"dc" }));;
          XCTAssertNotNil(params.correlationId);
-         XCTAssertNil(params.extraQueryParameters);
+         XCTAssertNil(params.extraScopesToConsent);
+         XCTAssertEqual(params.promptType, MSIDPromptTypePromptIfNecessary);
+         XCTAssertTrue(params.extraAuthorizeURLQueryParameters.count == 0);
          XCTAssertEqualObjects(params.loginHint, @"fakeuser@contoso.com");
          
          completionBlock(nil, nil);
      }];
+
+#if TARGET_OS_IPHONE
+    MSALGlobalConfig.brokerAvailability = MSALBrokeredAvailabilityNone;
+#endif
     
     [application acquireTokenForScopes:@[@"fakescope1", @"fakescope2"]
                              loginHint:@"fakeuser@contoso.com"
                        completionBlock:^(MSALResult *result, NSError *error)
      {
          XCTAssertNil(result);
-         XCTAssertNil(error);
+         XCTAssertNotNil(error);
      }];
 }
 
+
 - (void)testAcquireScopesLoginHintBehaviorEQPs
 {
-    NSError *error = nil;
-
-    NSArray *override = @[ @{ @"CFBundleURLSchemes" : @[UNIT_TEST_DEFAULT_REDIRECT_SCHEME] } ];
-    [MSALTestBundle overrideObject:override forKey:@"CFBundleURLTypes"];
+    __auto_type authority = [@"https://login.microsoftonline.com/common" msalAuthority];
+    MSALPublicClientApplicationConfig *config = [[MSALPublicClientApplicationConfig alloc] initWithClientId:UNIT_TEST_CLIENT_ID
+                                                                                                redirectUri:nil
+                                                                                                  authority:authority];
+    config.sliceConfig = [MSALSliceConfig configWithSlice:@"slice" dc:@"dc"];
     
-    MSALPublicClientApplication *application =
-    [[MSALPublicClientApplication alloc] initWithClientId:UNIT_TEST_CLIENT_ID
-                                                authority:@"https://login.microsoftonline.com/common"
-                                                    error:&error];
-    application.component = @"unittests";
-    application.sliceParameters = @{ @"slice" : @"myslice" };
+    NSError *error = nil;
+    __auto_type application = [[MSALPublicClientApplication alloc] initWithConfiguration:config
+                                                                                   error:&error];
     
     XCTAssertNotNil(application);
     XCTAssertNil(error);
     
-    [MSALTestSwizzle instanceMethod:@selector(run:)
-                              class:[MSALBaseRequest class]
-                              block:(id)^(MSALInteractiveRequest *obj, MSALCompletionBlock completionBlock)
+    [MSIDTestSwizzle instanceMethod:@selector(acquireToken:)
+                              class:[MSIDLocalInteractiveController class]
+                              block:(id)^(MSIDLocalInteractiveController *obj, MSIDRequestCompletionBlock completionBlock)
      {
-         XCTAssertTrue([obj isKindOfClass:[MSALInteractiveRequest class]]);
-         
-         XCTAssertNil(obj.extraScopesToConsent);
-         XCTAssertEqual(obj.uiBehavior, MSALForceLogin);
-         
-         MSALRequestParameters *params = [obj parameters];
+         XCTAssertTrue([obj isKindOfClass:[MSIDLocalInteractiveController class]]);
+
+         MSIDInteractiveRequestParameters *params = [obj interactiveRequestParamaters];
          XCTAssertNotNil(params);
-         
-         XCTAssertEqual(params.apiId, MSALTelemetryApiIdAcquireWithHintBehaviorAndParameters);
-         XCTAssertEqualObjects(params.unvalidatedAuthority.absoluteString, @"https://login.microsoftonline.com/common");
-         XCTAssertEqualObjects(params.scopes, ([NSOrderedSet orderedSetWithObjects:@"fakescope1", @"fakescope2", nil]));
+
+         NSString *expectedApiId = [NSString stringWithFormat:@"%ld", (long)MSALTelemetryApiIdAcquireWithHintPromptTypeAndParameters];
+         XCTAssertEqualObjects(params.telemetryApiId, expectedApiId);
+         XCTAssertEqualObjects(params.authority.url.absoluteString, @"https://login.microsoftonline.com/common");
+         XCTAssertEqualObjects(params.target, @"fakescope1 fakescope2");
+         XCTAssertEqualObjects(params.oidcScope, @"openid profile offline_access");
          XCTAssertEqualObjects(params.clientId, UNIT_TEST_CLIENT_ID);
-         XCTAssertEqualObjects(params.redirectUri.absoluteString, UNIT_TEST_DEFAULT_REDIRECT_URI);
-         XCTAssertEqualObjects(params.sliceParameters, @{ @"slice" : @"myslice" });
+         XCTAssertEqualObjects(params.redirectUri, UNIT_TEST_DEFAULT_REDIRECT_URI);
+         XCTAssertEqualObjects(params.extraURLQueryParameters, (@{ @"slice" : @"slice", @"dc" : @"dc" }));
          XCTAssertNotNil(params.correlationId);
-         XCTAssertEqualObjects(params.extraQueryParameters, (@{ @"eqp1" : @"val1", @"eqp2" : @"val2" }));
+         XCTAssertEqualObjects(params.extraAuthorizeURLQueryParameters, (@{ @"eqp1" : @"val1", @"eqp2" : @"val2" }));
          XCTAssertEqualObjects(params.loginHint, @"fakeuser@contoso.com");
+         XCTAssertNil(params.extraScopesToConsent);
+         XCTAssertEqual(params.promptType, MSIDPromptTypeLogin);
          
          completionBlock(nil, nil);
      }];
+
+#if TARGET_OS_IPHONE
+    MSALGlobalConfig.brokerAvailability = MSALBrokeredAvailabilityNone;
+#endif
     
     [application acquireTokenForScopes:@[@"fakescope1", @"fakescope2"]
                              loginHint:@"fakeuser@contoso.com"
-                            uiBehavior:MSALForceLogin
+                            promptType:MSALPromptTypeLogin
                   extraQueryParameters:@{ @"eqp1" : @"val1", @"eqp2" : @"val2" }
                        completionBlock:^(MSALResult *result, NSError *error)
      {
          XCTAssertNil(result);
-         XCTAssertNil(error);
+         XCTAssertNotNil(error);
      }];
 }
 
 - (void)testAcquireScopesAddlScopesLoginHintuiBehaviorEQPAuthorityCorrelationId
 {
-    NSError *error = nil;
-    
     [MSALTestBundle overrideBundleId:@"com.microsoft.unittests"];
+    __auto_type authority = [@"https://login.microsoftonline.com/common" msalAuthority];
+    MSALPublicClientApplicationConfig *config = [[MSALPublicClientApplicationConfig alloc] initWithClientId:UNIT_TEST_CLIENT_ID
+                                                                                                redirectUri:nil
+                                                                                                  authority:authority];
+    config.sliceConfig = [MSALSliceConfig configWithSlice:@"slice" dc:@"dc"];
     
-    NSArray *override = @[ @{ @"CFBundleURLSchemes" : @[UNIT_TEST_DEFAULT_REDIRECT_SCHEME] } ];
-    [MSALTestBundle overrideObject:override forKey:@"CFBundleURLTypes"];
-    
-    MSALPublicClientApplication *application =
-    [[MSALPublicClientApplication alloc] initWithClientId:UNIT_TEST_CLIENT_ID
-                                                authority:@"https://login.microsoftonline.com/common"
-                                                    error:&error];
-    application.component = @"unittests";
-    application.sliceParameters = @{ @"slice" : @"myslice" };
+    NSError *error = nil;
+    __auto_type application = [[MSALPublicClientApplication alloc] initWithConfiguration:config
+                                                                                   error:&error];
     
     XCTAssertNotNil(application);
     XCTAssertNil(error);
     
     __block NSUUID *correlationId = [NSUUID new];
     
-    [MSALTestSwizzle instanceMethod:@selector(run:)
-                              class:[MSALBaseRequest class]
-                              block:(id)^(MSALInteractiveRequest *obj, MSALCompletionBlock completionBlock)
+    [MSIDTestSwizzle instanceMethod:@selector(acquireToken:)
+                              class:[MSIDLocalInteractiveController class]
+                              block:(id)^(MSIDLocalInteractiveController *obj, MSIDRequestCompletionBlock completionBlock)
      {
-         XCTAssertTrue([obj isKindOfClass:[MSALInteractiveRequest class]]);
-         
-         XCTAssertEqualObjects(obj.extraScopesToConsent, [NSOrderedSet orderedSetWithArray:@[@"fakescope3"]]);
-         XCTAssertEqual(obj.uiBehavior, MSALForceConsent);
-         
-         MSALRequestParameters *params = [obj parameters];
+         XCTAssertTrue([obj isKindOfClass:[MSIDLocalInteractiveController class]]);
+
+         MSIDInteractiveRequestParameters *params = [obj interactiveRequestParamaters];
          XCTAssertNotNil(params);
-         
-         XCTAssertEqual(params.apiId, MSALTelemetryApiIdAcquireWithHintBehaviorParametersAuthorityAndCorrelationId);
-         XCTAssertEqualObjects(params.unvalidatedAuthority.absoluteString, @"https://login.microsoftonline.com/contoso.com");
-         XCTAssertEqualObjects(params.scopes, ([NSOrderedSet orderedSetWithObjects:@"fakescope1", @"fakescope2", nil]));
+
+         NSString *expectedApiId = [NSString stringWithFormat:@"%ld", (long)MSALTelemetryApiIdAcquireWithHintPromptTypeParametersAuthorityAndCorrelationId];
+         XCTAssertEqualObjects(params.telemetryApiId, expectedApiId);
+         XCTAssertEqualObjects(params.authority.url.absoluteString, @"https://login.microsoftonline.com/contoso.com");
+         XCTAssertEqualObjects(params.target, @"fakescope1 fakescope2");
+         XCTAssertEqualObjects(params.oidcScope, @"openid profile offline_access");
          XCTAssertEqualObjects(params.clientId, UNIT_TEST_CLIENT_ID);
-         XCTAssertEqualObjects(params.redirectUri.absoluteString, UNIT_TEST_DEFAULT_REDIRECT_URI);
-         XCTAssertEqualObjects(params.sliceParameters, @{ @"slice" : @"myslice" });
+         XCTAssertEqualObjects(params.redirectUri, UNIT_TEST_DEFAULT_REDIRECT_URI);
+         XCTAssertEqualObjects(params.extraURLQueryParameters, (@{ @"slice" : @"slice", @"dc" : @"dc" }));
          XCTAssertEqualObjects(params.correlationId, correlationId);
-         XCTAssertEqualObjects(params.extraQueryParameters, (@{ @"eqp1" : @"val1", @"eqp2" : @"val2" }));
+         XCTAssertEqualObjects(params.extraAuthorizeURLQueryParameters, (@{ @"eqp1" : @"val1", @"eqp2" : @"val2" }));
          XCTAssertEqualObjects(params.loginHint, @"fakeuser@contoso.com");
+         XCTAssertEqualObjects(params.extraScopesToConsent, @"fakescope3");
+         XCTAssertEqual(params.promptType, MSIDPromptTypeConsent);
          
          completionBlock(nil, nil);
      }];
     
+    authority = [@"https://login.microsoftonline.com/contoso.com" msalAuthority];
+#if TARGET_OS_IPHONE
+    MSALGlobalConfig.brokerAvailability = MSALBrokeredAvailabilityNone;
+#endif
+    
     [application acquireTokenForScopes:@[@"fakescope1", @"fakescope2"]
-                      extraScopesToConsent:@[@"fakescope3"]
+                  extraScopesToConsent:@[@"fakescope3"]
                              loginHint:@"fakeuser@contoso.com"
-                            uiBehavior:MSALForceConsent
+                            promptType:MSALPromptTypeConsent
                   extraQueryParameters:@{ @"eqp1" : @"val1", @"eqp2" : @"val2" }
-                             authority:@"https://login.microsoftonline.com/contoso.com"
+                             authority:authority
                          correlationId:correlationId
                        completionBlock:^(MSALResult *result, NSError *error)
      {
          XCTAssertNil(result);
-         XCTAssertNil(error);
+         XCTAssertNotNil(error);
      }];
 }
 
-#pragma
 #pragma mark - acquireToken using User
 
-- (void)testAcquireScopesUser
+- (void)testAcquireScopesWithAccount
 {
-    NSError *error = nil;
-
-    NSArray *override = @[ @{ @"CFBundleURLSchemes" : @[UNIT_TEST_DEFAULT_REDIRECT_SCHEME] } ];
-    [MSALTestBundle overrideObject:override forKey:@"CFBundleURLTypes"];
+    __auto_type authority = [@"https://login.microsoftonline.com/common" msalAuthority];
     
-    MSALPublicClientApplication *application =
-    [[MSALPublicClientApplication alloc] initWithClientId:UNIT_TEST_CLIENT_ID
-                                                authority:@"https://login.microsoftonline.com/common"
-                                                    error:&error];
-    application.component = @"unittests";
-    application.sliceParameters = @{ @"slice" : @"myslice" };
+    MSALPublicClientApplicationConfig *config = [[MSALPublicClientApplicationConfig alloc] initWithClientId:UNIT_TEST_CLIENT_ID
+                                                                                                redirectUri:nil
+                                                                                                  authority:authority];
+    config.sliceConfig = [MSALSliceConfig configWithSlice:@"slice" dc:@"dc"];
+    
+    NSError *error = nil;
+    __auto_type application = [[MSALPublicClientApplication alloc] initWithConfiguration:config
+                                                                                   error:&error];
     
     XCTAssertNotNil(application);
     XCTAssertNil(error);
     
-    MSALUser *user = [[MSALUser alloc] initWithDisplayableId:@"displayableId"
-                                                        name:@"user@contoso.com"
-                                            identityProvider:@"identifyProvider"
-                                                         uid:@"1"
-                                                        utid:@"1234-5678-90abcdefg"
-                                                 environment:@"https://login.microsoftonline.com"];
+    MSALAccount *account = [[MSALAccount alloc] initWithUsername:@"user@contoso.com"
+                                                            name:@"name"
+                                                   homeAccountId:@"1.1234-5678-90abcdefg"
+                                                  localAccountId:@"1"
+                                                     environment:@"login.microsoftonline.com"
+                                                        tenantId:@"1234-5678-90abcdefg"];
     
-    [MSALTestSwizzle instanceMethod:@selector(run:)
-                              class:[MSALBaseRequest class]
-                              block:(id)^(MSALInteractiveRequest *obj, MSALCompletionBlock completionBlock)
+    [MSIDTestSwizzle instanceMethod:@selector(acquireToken:)
+                              class:[MSIDLocalInteractiveController class]
+                              block:(id)^(MSIDLocalInteractiveController *obj, MSIDRequestCompletionBlock completionBlock)
      {
-         XCTAssertTrue([obj isKindOfClass:[MSALInteractiveRequest class]]);
-         XCTAssertNil(obj.extraScopesToConsent);
-         XCTAssertEqual(obj.uiBehavior, MSALUIBehaviorDefault);
-         
-         MSALRequestParameters *params = [obj parameters];
+         XCTAssertTrue([obj isKindOfClass:[MSIDLocalInteractiveController class]]);
+
+         MSIDInteractiveRequestParameters *params = [obj interactiveRequestParamaters];
          XCTAssertNotNil(params);
-         
-         XCTAssertEqual(params.apiId, MSALTelemetryApiIdAcquireWithUserBehaviorAndParameters);
-         XCTAssertEqualObjects(params.unvalidatedAuthority.absoluteString, @"https://login.microsoftonline.com/common");
-         XCTAssertEqualObjects(params.scopes, ([NSOrderedSet orderedSetWithObjects:@"fakescope1", @"fakescope2", nil]));
+
+         NSString *expectedApiId = [NSString stringWithFormat:@"%ld", (long)MSALTelemetryApiIdAcquireWithUserPromptTypeAndParameters];
+         XCTAssertEqualObjects(params.telemetryApiId, expectedApiId);
+         XCTAssertEqualObjects(params.authority.url.absoluteString, @"https://login.microsoftonline.com/common");
+         XCTAssertEqualObjects(params.target, @"fakescope1 fakescope2");
+         XCTAssertEqualObjects(params.oidcScope, @"openid profile offline_access");
          XCTAssertEqualObjects(params.clientId, UNIT_TEST_CLIENT_ID);
-         XCTAssertEqualObjects(params.redirectUri.absoluteString, UNIT_TEST_DEFAULT_REDIRECT_URI);
-         XCTAssertEqualObjects(params.sliceParameters, @{ @"slice" : @"myslice" });
+         XCTAssertEqualObjects(params.redirectUri, UNIT_TEST_DEFAULT_REDIRECT_URI);
+         XCTAssertEqualObjects(params.extraURLQueryParameters, (@{ @"slice" : @"slice", @"dc" : @"dc" }));
          XCTAssertNotNil(params.correlationId);
-         XCTAssertNil(params.extraQueryParameters);
+         XCTAssertTrue(params.extraAuthorizeURLQueryParameters.count == 0);
          XCTAssertNil(params.loginHint);
-         XCTAssertEqualObjects(params.user, user);
+         XCTAssertNil(params.extraScopesToConsent);
+         XCTAssertEqual(params.promptType, MSIDPromptTypePromptIfNecessary);
+
+         XCTAssertEqualObjects(params.accountIdentifier, account.lookupAccountIdentifier);
          
          completionBlock(nil, nil);
      }];
+
+#if TARGET_OS_IPHONE
+    MSALGlobalConfig.brokerAvailability = MSALBrokeredAvailabilityNone;
+#endif
     
     [application acquireTokenForScopes:@[@"fakescope1", @"fakescope2"]
-                                  user:user
+                               account:account
                        completionBlock:^(MSALResult *result, NSError *error)
      {
          XCTAssertNil(result);
-         XCTAssertNil(error);
+         XCTAssertNotNil(error);
      }];
 }
 
-
 - (void)testAcquireScopesUserUiBehaviorEQP
 {
-    NSError *error = nil;
-
-    NSArray *override = @[ @{ @"CFBundleURLSchemes" : @[UNIT_TEST_DEFAULT_REDIRECT_SCHEME] } ];
-    [MSALTestBundle overrideObject:override forKey:@"CFBundleURLTypes"];
+    __auto_type authority = [@"https://login.microsoftonline.com/common" msalAuthority];
+    MSALPublicClientApplicationConfig *config = [[MSALPublicClientApplicationConfig alloc] initWithClientId:UNIT_TEST_CLIENT_ID
+                                                                                                redirectUri:nil
+                                                                                                  authority:authority];
+    config.sliceConfig = [MSALSliceConfig configWithSlice:@"slice" dc:@"dc"];
     
-    MSALPublicClientApplication *application =
-    [[MSALPublicClientApplication alloc] initWithClientId:UNIT_TEST_CLIENT_ID
-                                                authority:@"https://login.microsoftonline.com/common"
-                                                    error:&error];
-    application.component = @"unittests";
-    application.sliceParameters = @{ @"slice" : @"myslice" };
+    NSError *error = nil;
+    __auto_type application = [[MSALPublicClientApplication alloc] initWithConfiguration:config
+                                                                                   error:&error];
     
     XCTAssertNotNil(application);
     XCTAssertNil(error);
     
-    MSALUser *user = [[MSALUser alloc] initWithDisplayableId:@"displayableId"
-                                                        name:@"user@contoso.com"
-                                            identityProvider:@"identifyProvider"
-                                                         uid:@"1"
-                                                        utid:@"1234-5678-90abcdefg"
-                                                 environment:@"https://login.microsoftonline.com"];
+    MSALAccount *account = [[MSALAccount alloc] initWithUsername:@"user@contoso.com"
+                                                            name:@"name"
+                                                   homeAccountId:@"1.1234-5678-90abcdefg"
+                                                  localAccountId:@"1"
+                                                     environment:@"login.microsoftonline.com"
+                                                        tenantId:@"1234-5678-90abcdefg"];
     
-    [MSALTestSwizzle instanceMethod:@selector(run:)
-                              class:[MSALBaseRequest class]
-                              block:(id)^(MSALInteractiveRequest *obj, MSALCompletionBlock completionBlock)
+    [MSIDTestSwizzle instanceMethod:@selector(acquireToken:)
+                              class:[MSIDLocalInteractiveController class]
+                              block:(id)^(MSIDLocalInteractiveController *obj, MSIDRequestCompletionBlock completionBlock)
      {
-         XCTAssertTrue([obj isKindOfClass:[MSALInteractiveRequest class]]);
-         XCTAssertNil(obj.extraScopesToConsent);
-         XCTAssertEqual(obj.uiBehavior, MSALUIBehaviorDefault);
-         
-         MSALRequestParameters *params = [obj parameters];
+         XCTAssertTrue([obj isKindOfClass:[MSIDLocalInteractiveController class]]);
+
+         MSIDInteractiveRequestParameters *params = [obj interactiveRequestParamaters];
          XCTAssertNotNil(params);
-         
-         XCTAssertEqual(params.apiId, MSALTelemetryApiIdAcquireWithUserBehaviorAndParameters);
-         XCTAssertEqualObjects(params.unvalidatedAuthority.absoluteString, @"https://login.microsoftonline.com/common");
-         XCTAssertEqualObjects(params.scopes, ([NSOrderedSet orderedSetWithObjects:@"fakescope1", @"fakescope2", nil]));
+
+         NSString *expectedApiId = [NSString stringWithFormat:@"%ld", (long)MSALTelemetryApiIdAcquireWithUserPromptTypeAndParameters];
+         XCTAssertEqualObjects(params.telemetryApiId, expectedApiId);
+         XCTAssertEqualObjects(params.authority.url.absoluteString, @"https://login.microsoftonline.com/common");
+         XCTAssertEqualObjects(params.target, @"fakescope1 fakescope2");
+         XCTAssertEqualObjects(params.oidcScope, @"openid profile offline_access");
          XCTAssertEqualObjects(params.clientId, UNIT_TEST_CLIENT_ID);
-         XCTAssertEqualObjects(params.redirectUri.absoluteString, UNIT_TEST_DEFAULT_REDIRECT_URI);
-         XCTAssertEqualObjects(params.sliceParameters, @{ @"slice" : @"myslice" });
+         XCTAssertEqualObjects(params.redirectUri, UNIT_TEST_DEFAULT_REDIRECT_URI);
+         XCTAssertEqualObjects(params.extraURLQueryParameters, (@{ @"slice" : @"slice", @"dc" : @"dc" }));
          XCTAssertNotNil(params.correlationId);
-         XCTAssertEqualObjects(params.extraQueryParameters, (@{ @"eqp1" : @"val1", @"eqp2" : @"val2" }));
+         XCTAssertEqualObjects(params.extraAuthorizeURLQueryParameters, (@{ @"eqp1" : @"val1", @"eqp2" : @"val2" }));
          XCTAssertNil(params.loginHint);
-         XCTAssertEqualObjects(params.user, user);
+         XCTAssertNil(params.extraScopesToConsent);
+         XCTAssertEqual(params.promptType, MSIDPromptTypePromptIfNecessary);
+         XCTAssertEqualObjects(params.accountIdentifier, account.lookupAccountIdentifier);
          
          completionBlock(nil, nil);
      }];
+
+#if TARGET_OS_IPHONE
+    MSALGlobalConfig.brokerAvailability = MSALBrokeredAvailabilityNone;
+#endif
     
-     [application acquireTokenForScopes:@[@"fakescope1", @"fakescope2"]
-                                  user:user
-                            uiBehavior:MSALUIBehaviorDefault
+    [application acquireTokenForScopes:@[@"fakescope1", @"fakescope2"]
+                               account:account
+                            promptType:MSALPromptTypeDefault
                   extraQueryParameters:@{ @"eqp1" : @"val1", @"eqp2" : @"val2" }
                        completionBlock:^(MSALResult *result, NSError *error)
-    {
-        XCTAssertNil(result);
-        XCTAssertNil(error);
-    }];
+     {
+         XCTAssertNil(result);
+         XCTAssertNotNil(error);
+     }];
 }
 
 - (void)testAcquireScopesAddlScopesUserUiBehaviorEQPAuthorityCorrelationId
 {
-    NSError *error = nil;
-
-    NSArray *override = @[ @{ @"CFBundleURLSchemes" : @[UNIT_TEST_DEFAULT_REDIRECT_SCHEME] } ];
-    [MSALTestBundle overrideObject:override forKey:@"CFBundleURLTypes"];
+    __auto_type authority = [@"https://login.microsoftonline.com/common" msalAuthority];
     
-    MSALPublicClientApplication *application =
-    [[MSALPublicClientApplication alloc] initWithClientId:UNIT_TEST_CLIENT_ID
-                                                authority:@"https://login.microsoftonline.com/common"
-                                                    error:&error];
-    application.component = @"unittests";
-    application.sliceParameters = @{ @"slice" : @"myslice" };
+    MSALPublicClientApplicationConfig *config = [[MSALPublicClientApplicationConfig alloc] initWithClientId:UNIT_TEST_CLIENT_ID
+                                                                                                redirectUri:nil
+                                                                                                  authority:authority];
+    config.sliceConfig = [MSALSliceConfig configWithSlice:@"slice" dc:@"dc"];
+    
+    NSError *error = nil;
+    __auto_type application = [[MSALPublicClientApplication alloc] initWithConfiguration:config
+                                                                                   error:&error];
     
     XCTAssertNotNil(application);
     XCTAssertNil(error);
     
     __block NSUUID *correlationId = [NSUUID new];
     
-    MSALUser *user = [[MSALUser alloc] initWithDisplayableId:@"displayableId"
-                                                        name:@"user@contoso.com"
-                                            identityProvider:@"identifyProvider"
-                                                         uid:@"1"
-                                                        utid:@"1234-5678-90abcdefg"
-                                                 environment:@"https://login.microsoftonline.com"];
+    MSALAccount *account = [[MSALAccount alloc] initWithUsername:@"user@contoso.com"
+                                                            name:@"name"
+                                                   homeAccountId:@"1.1234-5678-90abcdefg"
+                                                  localAccountId:@"1"
+                                                     environment:@"login.microsoftonline.com"
+                                                        tenantId:@"1234-5678-90abcdefg"];
     
-    [MSALTestSwizzle instanceMethod:@selector(run:)
-                              class:[MSALBaseRequest class]
-                              block:(id)^(MSALInteractiveRequest *obj, MSALCompletionBlock completionBlock)
+    [MSIDTestSwizzle instanceMethod:@selector(acquireToken:)
+                              class:[MSIDLocalInteractiveController class]
+                              block:(id)^(MSIDLocalInteractiveController *obj, MSIDRequestCompletionBlock completionBlock)
      {
-         XCTAssertTrue([obj isKindOfClass:[MSALInteractiveRequest class]]);
-         
-         XCTAssertEqualObjects(obj.extraScopesToConsent, [NSOrderedSet orderedSetWithArray:@[@"fakescope3"]]);
-         XCTAssertEqual(obj.uiBehavior, MSALUIBehaviorDefault);
-         
-         MSALRequestParameters *params = [obj parameters];
+         XCTAssertTrue([obj isKindOfClass:[MSIDLocalInteractiveController class]]);
+
+         MSIDInteractiveRequestParameters *params = [obj interactiveRequestParamaters];
          XCTAssertNotNil(params);
-         
-         XCTAssertEqual(params.apiId, MSALTelemetryApiIdAcquireWithUserBehaviorParametersAuthorityAndCorrelationId);
-         XCTAssertEqualObjects(params.unvalidatedAuthority.absoluteString, @"https://login.microsoftonline.com/contoso.com");
-         XCTAssertEqualObjects(params.scopes, ([NSOrderedSet orderedSetWithObjects:@"fakescope1", @"fakescope2", nil]));
+
+         NSString *expectedApiId = [NSString stringWithFormat:@"%ld", (long)MSALTelemetryApiIdAcquireWithUserPromptTypeParametersAuthorityAndCorrelationId];
+         XCTAssertEqualObjects(params.telemetryApiId, expectedApiId);
+         XCTAssertEqualObjects(params.authority.url.absoluteString, @"https://login.microsoftonline.com/contoso.com");
+         XCTAssertEqualObjects(params.target, @"fakescope1 fakescope2");
+         XCTAssertEqualObjects(params.oidcScope, @"openid profile offline_access");
          XCTAssertEqualObjects(params.clientId, UNIT_TEST_CLIENT_ID);
-         XCTAssertEqualObjects(params.redirectUri.absoluteString, UNIT_TEST_DEFAULT_REDIRECT_URI);
-         XCTAssertEqualObjects(params.sliceParameters, @{ @"slice" : @"myslice" });
+         XCTAssertEqualObjects(params.redirectUri, UNIT_TEST_DEFAULT_REDIRECT_URI);
+         XCTAssertEqualObjects(params.extraURLQueryParameters, (@{ @"slice" : @"slice", @"dc" : @"dc" }));
          XCTAssertEqualObjects(params.correlationId, correlationId);
-         XCTAssertEqualObjects(params.extraQueryParameters, (@{ @"eqp1" : @"val1", @"eqp2" : @"val2" }));
+         XCTAssertEqualObjects(params.extraAuthorizeURLQueryParameters, (@{ @"eqp1" : @"val1", @"eqp2" : @"val2" }));
          XCTAssertNil(params.loginHint);
-         XCTAssertEqualObjects(params.user, user);
+         XCTAssertEqualObjects(params.accountIdentifier, account.lookupAccountIdentifier);
+         XCTAssertEqualObjects(params.extraScopesToConsent, @"fakescope3");
+         XCTAssertEqual(params.promptType, MSIDPromptTypePromptIfNecessary);
          
          completionBlock(nil, nil);
      }];
     
+    authority = [@"https://login.microsoftonline.com/contoso.com" msalAuthority];
+#if TARGET_OS_IPHONE
+    MSALGlobalConfig.brokerAvailability = MSALBrokeredAvailabilityNone;
+#endif
+    
     [application acquireTokenForScopes:@[@"fakescope1", @"fakescope2"]
-                      extraScopesToConsent:@[@"fakescope3"]
-                                  user:user
-                            uiBehavior:MSALUIBehaviorDefault
+                  extraScopesToConsent:@[@"fakescope3"]
+                               account:account
+                            promptType:MSALPromptTypeDefault
                   extraQueryParameters:@{ @"eqp1" : @"val1", @"eqp2" : @"val2" }
-                             authority:@"https://login.microsoftonline.com/contoso.com"
+                             authority:authority
                          correlationId:correlationId
                        completionBlock:^(MSALResult *result, NSError *error)
-    {
-        XCTAssertNil(result);
-        XCTAssertNil(error);
-    }];
-   
+     {
+         XCTAssertNil(result);
+         XCTAssertNotNil(error);
+     }];
+    
 }
 
 #pragma
@@ -586,44 +971,41 @@
 
 - (void)testAcquireSilentScopesUser
 {
-    NSError *error = nil;
-
-    NSArray *override = @[ @{ @"CFBundleURLSchemes" : @[UNIT_TEST_DEFAULT_REDIRECT_SCHEME] } ];
-    [MSALTestBundle overrideObject:override forKey:@"CFBundleURLTypes"];
+    __auto_type authority = [@"https://login.microsoftonline.com/common" msalAuthority];
     
-    MSALPublicClientApplication *application =
-    [[MSALPublicClientApplication alloc] initWithClientId:UNIT_TEST_CLIENT_ID
-                                                authority:@"https://login.microsoftonline.com/common"
-                                                    error:&error];
-    application.component = @"unittests";
-    application.sliceParameters = @{ @"slice" : @"myslice" };
+    MSALPublicClientApplicationConfig *config = [[MSALPublicClientApplicationConfig alloc] initWithClientId:UNIT_TEST_CLIENT_ID
+                                                                                                redirectUri:nil
+                                                                                                  authority:authority];
+    config.sliceConfig = [MSALSliceConfig configWithSlice:@"slice" dc:@"dc"];
+    
+    NSError *error = nil;
+    __auto_type application = [[MSALPublicClientApplication alloc] initWithConfiguration:config
+                                                                                   error:&error];
     
     XCTAssertNotNil(application);
     XCTAssertNil(error);
     
-    [MSALTestSwizzle instanceMethod:@selector(run:)
-                              class:[MSALBaseRequest class]
-                              block:(id)^(MSALSilentRequest *obj, MSALCompletionBlock completionBlock)
+    [MSIDTestSwizzle instanceMethod:@selector(acquireToken:)
+                              class:[MSIDSilentController class]
+                              block:(id)^(MSIDSilentController *obj, MSIDRequestCompletionBlock completionBlock)
      {
-         XCTAssertTrue([obj isKindOfClass:[MSALSilentRequest class]]);
-
-         MSALRequestParameters *params = [obj parameters];
+         XCTAssertTrue([obj isKindOfClass:[MSIDSilentController class]]);
+         
+         MSIDRequestParameters *params = [obj requestParameters];
          XCTAssertNotNil(params);
 
-         XCTAssertEqual(params.apiId, MSALTelemetryApiIdAcquireSilentWithUser);
-         XCTAssertEqualObjects(params.user.displayableId, @"displayableId");
-         XCTAssertEqualObjects(params.user.name, @"user@contoso.com");
-         XCTAssertEqualObjects(params.user.identityProvider, @"identifyProvider");
-         XCTAssertEqualObjects(params.user.uid, @"1");
-         XCTAssertEqualObjects(params.user.utid, @"1234-5678-90abcdefg");
-         XCTAssertEqualObjects(params.user.environment, @"https://login.microsoftonline.com");
-         XCTAssertEqualObjects(params.sliceParameters, @{ @"slice" : @"myslice" });
+         NSString *expectedApiId = [NSString stringWithFormat:@"%ld", (long)MSALTelemetryApiIdAcquireSilentWithUser];
+         XCTAssertEqualObjects(params.telemetryApiId, expectedApiId);
+         XCTAssertEqualObjects(params.accountIdentifier.displayableId, @"user@contoso.com");
+         XCTAssertEqualObjects(params.accountIdentifier.homeAccountId, @"1.1234-5678-90abcdefg");
+         XCTAssertEqualObjects(params.extraURLQueryParameters, (@{ @"slice" : @"slice", @"dc" : @"dc" }));
          
-         XCTAssertNil(params.unvalidatedAuthority);
+         XCTAssertEqualObjects(params.authority, [@"https://login.microsoftonline.com/1234-5678-90abcdefg" msalAuthority].msidAuthority);
          
          XCTAssertFalse(obj.forceRefresh);
          
-         XCTAssertEqualObjects(params.scopes, ([NSOrderedSet orderedSetWithObjects:@"fakescope1", @"fakescope2", nil]));
+         XCTAssertEqualObjects(params.target, @"fakescope1 fakescope2");
+         XCTAssertEqualObjects(params.oidcScope, @"openid profile offline_access");
          XCTAssertEqualObjects(params.clientId, UNIT_TEST_CLIENT_ID);
          
          XCTAssertNotNil(params.correlationId);
@@ -631,62 +1013,59 @@
          completionBlock(nil, nil);
      }];
     
-    MSALUser *user = [[MSALUser alloc] initWithDisplayableId:@"displayableId"
-                                                        name:@"user@contoso.com"
-                                            identityProvider:@"identifyProvider"
-                                                         uid:@"1"
-                                                        utid:@"1234-5678-90abcdefg"
-                                                 environment:@"https://login.microsoftonline.com"];
+    MSALAccount *account = [[MSALAccount alloc] initWithUsername:@"user@contoso.com"
+                                                            name:@"name"
+                                                   homeAccountId:@"1.1234-5678-90abcdefg"
+                                                  localAccountId:@"1"
+                                                     environment:@"login.microsoftonline.com"
+                                                        tenantId:@"1234-5678-90abcdefg"];
     
     [application acquireTokenSilentForScopes:@[@"fakescope1", @"fakescope2"]
-                                        user:user
+                                     account:account
                              completionBlock:^(MSALResult *result, NSError *error)
      {
-                                 XCTAssertNil(result);
-                                 XCTAssertNil(error);
+         XCTAssertNil(result);
+         XCTAssertNotNil(error);
      }];
 }
 
 - (void)testAcquireSilentScopesUserAuthority
 {
-    NSError *error = nil;
-
-    NSArray *override = @[ @{ @"CFBundleURLSchemes" : @[UNIT_TEST_DEFAULT_REDIRECT_SCHEME] } ];
-    [MSALTestBundle overrideObject:override forKey:@"CFBundleURLTypes"];
+    __auto_type authority = [@"https://login.microsoftonline.com/common" msalAuthority];
     
-    MSALPublicClientApplication *application =
-    [[MSALPublicClientApplication alloc] initWithClientId:UNIT_TEST_CLIENT_ID
-                                                authority:@"https://login.microsoftonline.com/common"
-                                                    error:&error];
-    application.component = @"unittests";
-    application.sliceParameters = @{ @"slice" : @"myslice" };
+    MSALPublicClientApplicationConfig *config = [[MSALPublicClientApplicationConfig alloc] initWithClientId:UNIT_TEST_CLIENT_ID
+                                                                                                redirectUri:nil
+                                                                                                  authority:authority];
+    config.sliceConfig = [MSALSliceConfig configWithSlice:@"slice" dc:@"dc"];
+    
+    NSError *error = nil;
+    __auto_type application = [[MSALPublicClientApplication alloc] initWithConfiguration:config
+                                                                                   error:&error];
     
     XCTAssertNotNil(application);
     XCTAssertNil(error);
     
-    [MSALTestSwizzle instanceMethod:@selector(run:)
-                              class:[MSALBaseRequest class]
-                              block:(id)^(MSALSilentRequest *obj, MSALCompletionBlock completionBlock)
+    [MSIDTestSwizzle instanceMethod:@selector(acquireToken:)
+                              class:[MSIDSilentController class]
+                              block:(id)^(MSIDSilentController *obj, MSIDRequestCompletionBlock completionBlock)
      {
-         XCTAssertTrue([obj isKindOfClass:[MSALSilentRequest class]]);
-         
-         MSALRequestParameters *params = [obj parameters];
+         XCTAssertTrue([obj isKindOfClass:[MSIDSilentController class]]);
+
+         MSIDRequestParameters *params = [obj requestParameters];
          XCTAssertNotNil(params);
+
+         NSString *expectedApiId = [NSString stringWithFormat:@"%ld", (long)MSALTelemetryApiIdAcquireSilentWithUserAndAuthority];
+         XCTAssertEqualObjects(params.telemetryApiId, expectedApiId);
+         XCTAssertEqualObjects(params.accountIdentifier.displayableId, @"user@contoso.com");
+         XCTAssertEqualObjects(params.accountIdentifier.homeAccountId, @"1.1234-5678-90abcdefg");
+         XCTAssertEqualObjects(params.extraURLQueryParameters, (@{ @"slice" : @"slice", @"dc" : @"dc" }));
          
-         XCTAssertEqual(params.apiId, MSALTelemetryApiIdAcquireSilentWithUserAndAuthority);
-         XCTAssertEqualObjects(params.user.displayableId, @"displayableId");
-         XCTAssertEqualObjects(params.user.name, @"user@contoso.com");
-         XCTAssertEqualObjects(params.user.identityProvider, @"identifyProvider");
-         XCTAssertEqualObjects(params.user.uid, @"1");
-         XCTAssertEqualObjects(params.user.utid, @"1234-5678-90abcdefg");
-         XCTAssertEqualObjects(params.user.environment, @"https://login.microsoftonline.com");
-         XCTAssertEqualObjects(params.sliceParameters, @{ @"slice" : @"myslice" });
-         
-         XCTAssertEqualObjects(params.unvalidatedAuthority.absoluteString, @"https://login.microsoft.com/common");
+         XCTAssertEqualObjects(params.authority.url.absoluteString, @"https://login.microsoft.com/1234-5678-90abcdefg");
          
          XCTAssertFalse(obj.forceRefresh);
          
-         XCTAssertEqualObjects(params.scopes, ([NSOrderedSet orderedSetWithObjects:@"fakescope1", @"fakescope2", nil]));
+         XCTAssertEqualObjects(params.target, @"fakescope1 fakescope2");
+         XCTAssertEqualObjects(params.oidcScope, @"openid profile offline_access");
          XCTAssertEqualObjects(params.clientId, UNIT_TEST_CLIENT_ID);
          
          XCTAssertNotNil(params.correlationId);
@@ -694,20 +1073,206 @@
          completionBlock(nil, nil);
      }];
     
-    MSALUser *user = [[MSALUser alloc] initWithDisplayableId:@"displayableId"
-                                                        name:@"user@contoso.com"
-                                            identityProvider:@"identifyProvider"
-                                                         uid:@"1"
-                                                        utid:@"1234-5678-90abcdefg"
-                                                 environment:@"https://login.microsoftonline.com"];
+    authority = [@"https://login.microsoft.com/common" msalAuthority];
+    
+    MSALAccount *account = [[MSALAccount alloc] initWithUsername:@"user@contoso.com"
+                                                            name:@"name"
+                                                   homeAccountId:@"1.1234-5678-90abcdefg"
+                                                  localAccountId:@"1"
+                                                     environment:@"login.microsoftonline.com"
+                                                        tenantId:@"1234-5678-90abcdefg"];
     
     [application acquireTokenSilentForScopes:@[@"fakescope1", @"fakescope2"]
-                                        user:user
-                                   authority:@"https://login.microsoft.com/common"
+                                     account:account
+                                   authority:authority
                              completionBlock:^(MSALResult *result, NSError *error)
      {
          XCTAssertNil(result);
-         XCTAssertNil(error);
+         XCTAssertNotNil(error);
+     }];
+    
+}
+
+- (void)testAcquireSilentScopesUser_whenNoAuthority_andCommonAuthorityInPublicClientApplication_shouldUseAccountHomeAuthority
+{
+    NSError *error = nil;
+    __auto_type authority = [@"https://login.microsoftonline.com/common" msalAuthority];
+    
+    MSALPublicClientApplicationConfig *config = [[MSALPublicClientApplicationConfig alloc] initWithClientId:UNIT_TEST_CLIENT_ID
+                                                                                                redirectUri:nil
+                                                                                                  authority:authority];
+    config.sliceConfig = [MSALSliceConfig configWithSlice:@"slice" dc:@"dc"];
+    
+    __auto_type application = [[MSALPublicClientApplication alloc] initWithConfiguration:config
+                                                                                   error:&error];
+    
+    XCTAssertNotNil(application);
+    XCTAssertNil(error);
+    
+    [MSIDTestSwizzle instanceMethod:@selector(acquireToken:)
+                              class:[MSIDSilentController class]
+                              block:(id)^(MSIDSilentController *obj, MSIDRequestCompletionBlock completionBlock)
+     {
+         XCTAssertTrue([obj isKindOfClass:[MSIDSilentController class]]);
+
+         MSIDRequestParameters *params = [obj requestParameters];
+         XCTAssertNotNil(params);
+
+         NSString *expectedApiId = [NSString stringWithFormat:@"%ld", (long)MSALTelemetryApiIdAcquireSilentWithUser];
+         XCTAssertEqualObjects(params.telemetryApiId, expectedApiId);
+         XCTAssertEqualObjects(params.accountIdentifier.displayableId, @"user@contoso.com");
+         XCTAssertEqualObjects(params.accountIdentifier.homeAccountId, @"1.1234-5678-90abcdefg");
+         XCTAssertEqualObjects(params.extraURLQueryParameters, (@{ @"slice" : @"slice", @"dc" : @"dc" }));
+         
+         XCTAssertEqualObjects(params.authority.url.absoluteString, @"https://login.microsoftonline.com/1234-5678-90abcdefg");
+         
+         XCTAssertFalse(obj.forceRefresh);
+         
+         XCTAssertEqualObjects(params.target, @"fakescope1 fakescope2");
+         XCTAssertEqualObjects(params.oidcScope, @"openid profile offline_access");
+         XCTAssertEqualObjects(params.clientId, UNIT_TEST_CLIENT_ID);
+         
+         XCTAssertNotNil(params.correlationId);
+         
+         completionBlock(nil, nil);
+     }];
+    
+    MSALAccount *account = [[MSALAccount alloc] initWithUsername:@"user@contoso.com"
+                                                            name:@"name"
+                                                   homeAccountId:@"1.1234-5678-90abcdefg"
+                                                  localAccountId:@"1"
+                                                     environment:@"login.microsoftonline.com"
+                                                        tenantId:@"custom_guest_tenant"];
+    
+    [application acquireTokenSilentForScopes:@[@"fakescope1", @"fakescope2"]
+                                     account:account
+                             completionBlock:^(MSALResult *result, NSError *error)
+     {
+         XCTAssertNil(result);
+         XCTAssertNotNil(error);
+     }];
+    
+}
+
+- (void)testAcquireSilentScopesUser_whenNoAuthority_andNonCommonAuthorityInPublicClientApplication_shouldUseThatAuthority
+{
+    NSError *error = nil;
+    __auto_type authority = [@"https://login.microsoftonline.com/custom_guest_tenant" msalAuthority];
+    
+    MSALPublicClientApplicationConfig *config = [[MSALPublicClientApplicationConfig alloc] initWithClientId:UNIT_TEST_CLIENT_ID
+                                                                                                redirectUri:nil
+                                                                                                  authority:authority];
+    config.sliceConfig = [MSALSliceConfig configWithSlice:@"slice" dc:@"dc"];
+    
+    __auto_type application = [[MSALPublicClientApplication alloc] initWithConfiguration:config
+                                                                                   error:&error];
+    
+    XCTAssertNotNil(application);
+    XCTAssertNil(error);
+    
+    [MSIDTestSwizzle instanceMethod:@selector(acquireToken:)
+                              class:[MSIDSilentController class]
+                              block:(id)^(MSIDSilentController *obj, MSIDRequestCompletionBlock completionBlock)
+     {
+         XCTAssertTrue([obj isKindOfClass:[MSIDSilentController class]]);
+
+         MSIDRequestParameters *params = [obj requestParameters];
+         XCTAssertNotNil(params);
+
+         NSString *expectedApiId = [NSString stringWithFormat:@"%ld", (long)MSALTelemetryApiIdAcquireSilentWithUser];
+         XCTAssertEqualObjects(params.telemetryApiId, expectedApiId);
+         XCTAssertEqualObjects(params.accountIdentifier.displayableId, @"user@contoso.com");
+         XCTAssertEqualObjects(params.accountIdentifier.homeAccountId, @"1.1234-5678-90abcdefg");
+         XCTAssertEqualObjects(params.extraURLQueryParameters, (@{ @"slice" : @"slice", @"dc" : @"dc" }));
+         
+         XCTAssertEqualObjects(params.authority.url.absoluteString, @"https://login.microsoftonline.com/custom_guest_tenant");
+         
+         XCTAssertFalse(obj.forceRefresh);
+         
+         XCTAssertEqualObjects(params.target, @"fakescope1 fakescope2");
+         XCTAssertEqualObjects(params.oidcScope, @"openid profile offline_access");
+         XCTAssertEqualObjects(params.clientId, UNIT_TEST_CLIENT_ID);
+         
+         XCTAssertNotNil(params.correlationId);
+         
+         completionBlock(nil, nil);
+     }];
+    
+    MSALAccount *account = [[MSALAccount alloc] initWithUsername:@"user@contoso.com"
+                                                            name:@"name"
+                                                   homeAccountId:@"1.1234-5678-90abcdefg"
+                                                  localAccountId:@"1"
+                                                     environment:@"login.microsoftonline.com"
+                                                        tenantId:@"custom_guest_tenant"];
+    
+    [application acquireTokenSilentForScopes:@[@"fakescope1", @"fakescope2"]
+                                     account:account
+                             completionBlock:^(MSALResult *result, NSError *error)
+     {
+         XCTAssertNil(result);
+         XCTAssertNotNil(error);
+     }];
+    
+}
+
+- (void)testAcquireSilentScopesUser_whenNilAuthority_andNonCommonAuthorityInPublicClientApplication_shouldUseThatAuthority
+{
+    NSError *error = nil;
+    __auto_type authority = [@"https://login.microsoftonline.com/custom_guest_tenant" msalAuthority];
+    
+    MSALPublicClientApplicationConfig *config = [[MSALPublicClientApplicationConfig alloc] initWithClientId:UNIT_TEST_CLIENT_ID
+                                                                                                redirectUri:nil
+                                                                                                  authority:authority];
+    config.sliceConfig = [MSALSliceConfig configWithSlice:@"slice" dc:@"dc"];
+    
+    __auto_type application = [[MSALPublicClientApplication alloc] initWithConfiguration:config
+                                                                                   error:&error];
+    
+    XCTAssertNotNil(application);
+    XCTAssertNil(error);
+    
+    [MSIDTestSwizzle instanceMethod:@selector(acquireToken:)
+                              class:[MSIDSilentController class]
+                              block:(id)^(MSIDSilentController *obj, MSIDRequestCompletionBlock completionBlock)
+     {
+         XCTAssertTrue([obj isKindOfClass:[MSIDSilentController class]]);
+
+         MSIDRequestParameters *params = [obj requestParameters];
+         XCTAssertNotNil(params);
+
+         NSString *expectedApiId = [NSString stringWithFormat:@"%ld", (long)MSALTelemetryApiIdAcquireSilentWithUserAndAuthority];
+         XCTAssertEqualObjects(params.telemetryApiId, expectedApiId);
+         XCTAssertEqualObjects(params.accountIdentifier.displayableId, @"user@contoso.com");
+         XCTAssertEqualObjects(params.accountIdentifier.homeAccountId, @"1.1234-5678-90abcdefg");
+         XCTAssertEqualObjects(params.extraURLQueryParameters, (@{ @"slice" : @"slice", @"dc" : @"dc" }));
+         
+         XCTAssertEqualObjects(params.authority.url.absoluteString, @"https://login.microsoftonline.com/custom_guest_tenant");
+         
+         XCTAssertFalse(obj.forceRefresh);
+         
+         XCTAssertEqualObjects(params.target, @"fakescope1 fakescope2");
+         XCTAssertEqualObjects(params.oidcScope, @"openid profile offline_access");
+         XCTAssertEqualObjects(params.clientId, UNIT_TEST_CLIENT_ID);
+         
+         XCTAssertNotNil(params.correlationId);
+         
+         completionBlock(nil, nil);
+     }];
+    
+    MSALAccount *account = [[MSALAccount alloc] initWithUsername:@"user@contoso.com"
+                                                            name:@"name"
+                                                   homeAccountId:@"1.1234-5678-90abcdefg"
+                                                  localAccountId:@"1"
+                                                     environment:@"login.microsoftonline.com"
+                                                        tenantId:@"custom_guest_tenant"];
+    
+    [application acquireTokenSilentForScopes:@[@"fakescope1", @"fakescope2"]
+                                     account:account
+                                   authority:nil
+                             completionBlock:^(MSALResult *result, NSError *error)
+     {
+         XCTAssertNil(result);
+         XCTAssertNotNil(error);
      }];
     
 }
@@ -715,46 +1280,43 @@
 - (void)testAcquireSilentScopesUserAuthorityForceRefreshCorrelationId
 {
     NSError *error = nil;
-
-    NSArray *override = @[ @{ @"CFBundleURLSchemes" : @[UNIT_TEST_DEFAULT_REDIRECT_SCHEME] } ];
-    [MSALTestBundle overrideObject:override forKey:@"CFBundleURLTypes"];
+    __auto_type authority = [@"https://login.microsoftonline.com/common" msalAuthority];
     
-    MSALPublicClientApplication *application =
-    [[MSALPublicClientApplication alloc] initWithClientId:UNIT_TEST_CLIENT_ID
-                                                authority:@"https://login.microsoftonline.com/common"
-                                                    error:&error];
-    application.component = @"unittests";
-    application.sliceParameters = @{ @"slice" : @"myslice" };
+    MSALPublicClientApplicationConfig *config = [[MSALPublicClientApplicationConfig alloc] initWithClientId:UNIT_TEST_CLIENT_ID
+                                                                                                redirectUri:nil
+                                                                                                  authority:authority];
+    config.sliceConfig = [MSALSliceConfig configWithSlice:@"slice" dc:@"dc"];
+    
+    __auto_type application = [[MSALPublicClientApplication alloc] initWithConfiguration:config
+                                                                                   error:&error];
     
     XCTAssertNotNil(application);
     XCTAssertNil(error);
     
     __block NSUUID *correlationId = [NSUUID new];
     
-    [MSALTestSwizzle instanceMethod:@selector(run:)
-                              class:[MSALBaseRequest class]
-                              block:(id)^(MSALSilentRequest *obj, MSALCompletionBlock completionBlock)
+    [MSIDTestSwizzle instanceMethod:@selector(acquireToken:)
+                              class:[MSIDSilentController class]
+                              block:(id)^(MSIDSilentController *obj, MSIDRequestCompletionBlock completionBlock)
      {
-         XCTAssertTrue([obj isKindOfClass:[MSALSilentRequest class]]);
-         
-         MSALRequestParameters *params = [obj parameters];
+         XCTAssertTrue([obj isKindOfClass:[MSIDSilentController class]]);
+
+         MSIDRequestParameters *params = [obj requestParameters];
          XCTAssertNotNil(params);
+
+         NSString *expectedApiId = [NSString stringWithFormat:@"%ld", (long)MSALTelemetryApiIdAcquireSilentWithUserAuthorityForceRefreshAndCorrelationId];
+         XCTAssertEqualObjects(params.telemetryApiId, expectedApiId);
+         XCTAssertEqualObjects(params.accountIdentifier.displayableId, @"user@contoso.com");
+         XCTAssertEqualObjects(params.accountIdentifier.homeAccountId, @"1.1234-5678-90abcdefg");
+         XCTAssertEqualObjects(params.extraURLQueryParameters, (@{ @"slice" : @"slice", @"dc" : @"dc" }));
          
-         XCTAssertEqual(params.apiId, MSALTelemetryApiIdAcquireSilentWithUserAuthorityForceRefreshAndCorrelationId);
-         XCTAssertEqualObjects(params.user.displayableId, @"displayableId");
-         XCTAssertEqualObjects(params.user.name, @"user@contoso.com");
-         XCTAssertEqualObjects(params.user.identityProvider, @"identifyProvider");
-         XCTAssertEqualObjects(params.user.uid, @"1");
-         XCTAssertEqualObjects(params.user.utid, @"1234-5678-90abcdefg");
-         XCTAssertEqualObjects(params.user.environment, @"https://login.microsoftonline.com");
-         XCTAssertEqualObjects(params.sliceParameters, @{ @"slice" : @"myslice" });
-         
-         XCTAssertEqualObjects(params.unvalidatedAuthority.absoluteString, @"https://login.microsoft.com/common");
+         XCTAssertEqualObjects(params.authority.url.absoluteString, @"https://login.microsoft.com/1234-5678-90abcdefg");
          
          XCTAssertTrue(obj.forceRefresh);
          
          XCTAssertEqualObjects(params.correlationId, correlationId);
-         XCTAssertEqualObjects(params.scopes, ([NSOrderedSet orderedSetWithObjects:@"fakescope1", @"fakescope2", nil]));
+         XCTAssertEqualObjects(params.target, @"fakescope1 fakescope2");
+         XCTAssertEqualObjects(params.oidcScope, @"openid profile offline_access");
          XCTAssertEqualObjects(params.clientId, UNIT_TEST_CLIENT_ID);
          
          XCTAssertNotNil(params.correlationId);
@@ -762,138 +1324,685 @@
          completionBlock(nil, nil);
      }];
     
-    MSALUser *user = [[MSALUser alloc] initWithDisplayableId:@"displayableId"
-                                                        name:@"user@contoso.com"
-                                            identityProvider:@"identifyProvider"
-                                                         uid:@"1"
-                                                        utid:@"1234-5678-90abcdefg"
-                                                 environment:@"https://login.microsoftonline.com"];
+    MSALAccount *account = [[MSALAccount alloc] initWithUsername:@"user@contoso.com"
+                                                            name:@"name"
+                                                   homeAccountId:@"1.1234-5678-90abcdefg"
+                                                  localAccountId:@"1"
+                                                     environment:@"login.microsoftonline.com"
+                                                        tenantId:@"1234-5678-90abcdefg"];
+    
+    authority = [@"https://login.microsoft.com/common" msalAuthority];
     
     [application acquireTokenSilentForScopes:@[@"fakescope1", @"fakescope2"]
-                                        user:user
-                                   authority:@"https://login.microsoft.com/common"
+                                     account:account
+                                   authority:authority
                                 forceRefresh:YES
                                correlationId:correlationId
                              completionBlock:^(MSALResult *result, NSError *error)
      {
          XCTAssertNil(result);
-         XCTAssertNil(error);
+         XCTAssertNotNil(error);
      }];
     
 }
 
-#pragma
-#pragma mark - remove user
+#if TARGET_OS_IPHONE
 
-- (void)testRemoveUser
+#pragma mark - allAccounts
+
+- (void)testAllAccounts_whenNoAccountsExist_shouldReturnEmptyArrayNoError
 {
-    NSArray *override = @[ @{ @"CFBundleURLSchemes" : @[UNIT_TEST_DEFAULT_REDIRECT_SCHEME] } ];
-    [MSALTestBundle overrideObject:override forKey:@"CFBundleURLTypes"];
-    
-    NSError *error = nil;
-    
     NSString *clientId = UNIT_TEST_CLIENT_ID;
-    MSALPublicClientApplication *application =
-    [[MSALPublicClientApplication alloc] initWithClientId:clientId
-                                                    error:nil];
-    application.tokenCache = [MSALTestTokenCache createTestAccessor];
-    id<MSALTokenCacheAccessor> dataSource = application.tokenCache.dataSource;
+    NSError *error = nil;
+    __auto_type application = [[MSALPublicClientApplication alloc] initWithClientId:clientId error:&error];
+    XCTAssertNil(error);
+    application.tokenCache = self.tokenCacheAccessor;
     
     // Make sure no users are showing up in the cache
-    XCTAssertEqual([application users:nil].count, 0);
+    NSArray *accounts = [application allAccounts:&error];
+    XCTAssertNil(error);
+    XCTAssertNotNil(accounts);
+    XCTAssertEqual([accounts count], 0);
+}
+
+- (void)testAllAccounts_whenAccountExists_shouldReturnAccountNoError
+{
+    [self msalStoreTokenResponseInCache];
     
-    NSDictionary* idTokenClaims = @{ @"home_oid" : @"29f3807a-4fb0-42f2-a44a-236aa0cb3f97"};
-    MSALIdToken *idToken = [[MSALIdToken alloc] initWithJson:idTokenClaims error:nil];
-    NSDictionary* clientInfoClaims = @{ @"uid" : @"29f3807a-4fb0-42f2-a44a-236aa0cb3f97", @"utid" : @"0287f963-2d72-4363-9e3a-5705c5b0f031"};
-    MSALClientInfo *clientInfo = [[MSALClientInfo alloc] initWithJson:clientInfoClaims error:nil];
-    MSALUser *user = [[MSALUser alloc] initWithIdToken:idToken clientInfo:clientInfo environment:@"login.microsoftonline.com"];
+    NSString *clientId = UNIT_TEST_CLIENT_ID;
+    __auto_type application = [[MSALPublicClientApplication alloc] initWithClientId:clientId error:nil];
+    application.tokenCache = self.tokenCacheAccessor;
     
-    NSString *rawClientInfo = [NSString msalBase64UrlEncodeData:[NSJSONSerialization dataWithJSONObject:clientInfoClaims options:0 error:nil]];
+    NSError *error = nil;
+    NSArray *accounts = [application allAccounts:&error];
+    XCTAssertNil(error);
+    XCTAssertNotNil(accounts);
+    XCTAssertEqual([accounts count], 1);
     
-    //store an access token in cache
-    NSString *rawIdToken = [NSString stringWithFormat:@"fakeheader.%@.fakesignature",
-                            [NSString msalBase64UrlEncodeData:[NSJSONSerialization dataWithJSONObject:idTokenClaims options:0 error:nil]]];
-    MSALAccessTokenCacheItem *at =
-    [[MSALAccessTokenCacheItem alloc] initWithJson:@{
-                                                     @"authority" : @"https://login.microsoftonline.com/fake_tenant",
-                                                     @"scope": @"fakescope1 fakescope2",
-                                                     @"client_id": clientId,
-                                                     @"id_token": rawIdToken,
-                                                     @"client_info": rawClientInfo,
-                                                     }
-                                             error:nil];
-    [dataSource addOrUpdateAccessTokenItem:at context:nil error:nil];
-    MSALRefreshTokenCacheItem *rt =
-    [[MSALRefreshTokenCacheItem alloc] initWithJson:@{
-                                                      @"environment" : @"login.microsoftonline.com",
-                                                      @"client_id": clientId,
-                                                      @"client_info": rawClientInfo,
-                                                      @"refresh_token": @"fakeRefreshToken"
-                                                      }
-                                              error:nil];
-    [dataSource addOrUpdateRefreshTokenItem:rt context:nil error:nil];
+    MSALAccount *account = accounts[0];
+    XCTAssertEqualObjects(account.username, @"fakeuser@contoso.com");
+    XCTAssertEqualObjects(account.environment, @"login.microsoftonline.com");
+    XCTAssertEqualObjects(account.homeAccountId.identifier, @"myuid.utid");
+    XCTAssertEqualObjects(account.homeAccountId.objectId, @"myuid");
+    XCTAssertEqualObjects(account.homeAccountId.tenantId, @"utid");
+}
+
+- (void)testAllAccounts_when2AccountExists_shouldReturn2Accounts
+{
+    [self msalStoreTokenResponseInCacheWithAuthority:@"https://login.microsoftonline.com/common"];
+    [self msalStoreTokenResponseInCacheWithAuthority:@"https://example.com/common"];
+    
+    __auto_type application = [[MSALPublicClientApplication alloc] initWithClientId:UNIT_TEST_CLIENT_ID error:nil];
+    application.tokenCache = self.tokenCacheAccessor;
+    
+    NSError *error = nil;
+    NSArray *accounts = [application allAccounts:&error];
+    XCTAssertNil(error);
+    XCTAssertNotNil(accounts);
+    XCTAssertEqual([accounts count], 2);
+    
+    MSALAccount *account = accounts[0];
+    XCTAssertEqualObjects(account.username, @"fakeuser@contoso.com");
+    XCTAssertEqualObjects(account.environment, @"login.microsoftonline.com");
+    XCTAssertEqualObjects(account.homeAccountId.identifier, @"myuid.utid");
+    XCTAssertEqualObjects(account.homeAccountId.objectId, @"myuid");
+    XCTAssertEqualObjects(account.homeAccountId.tenantId, @"utid");
+    
+    MSALAccount *account2 = accounts[1];
+    XCTAssertEqualObjects(account2.username, @"fakeuser@contoso.com");
+    XCTAssertEqualObjects(account2.environment, @"example.com");
+    XCTAssertEqualObjects(account2.homeAccountId.identifier, @"myuid.utid");
+    XCTAssertEqualObjects(account2.homeAccountId.objectId, @"myuid");
+    XCTAssertEqualObjects(account2.homeAccountId.tenantId, @"utid");
+}
+
+- (void)testAllAccount_whenFociTokenExistsForOtherClient_andAppMetadataWithSameFamilyIdInCache_shouldReturnAccountNoError
+{
+    //store at & rt in cache with foci flag
+    MSIDAADV2TokenResponse *msidResponse = [self msalDefaultTokenResponseWithAuthority:@"https://login.microsoftonline.com/common" familyId:@"1"];
+    MSIDConfiguration *configuration = [self msalDefaultConfigurationWithAuthority:@"https://login.microsoftonline.com/common"];
+
+    BOOL result = [self.tokenCacheAccessor saveTokensWithConfiguration:configuration
+                                                              response:msidResponse
+                                                               factory:[MSIDAADV2Oauth2Factory new]
+                                                               context:nil
+                                                                 error:nil];
+    XCTAssertTrue(result);
+    XCTAssertEqual([[self.tokenCacheAccessor allTokensWithContext:nil error:nil] count], 4);
+
+    NSString *clientId = @"myclient";
+
+    [self.tokenCacheAccessor updateAppMetadataWithFamilyId:@"1" clientId:clientId authority:configuration.authority context:nil error:nil];
+
+    // Retrieve cache for a different clientId
+    NSArray *override = @[ @{ @"CFBundleURLSchemes" : @[@"msalmyclient"] } ];
+    [MSALTestBundle overrideObject:override forKey:@"CFBundleURLTypes"];
+
+    NSError *appError = nil;
+    __auto_type application = [[MSALPublicClientApplication alloc] initWithClientId:clientId error:&appError];
+    XCTAssertNil(appError);
+    application.tokenCache = self.tokenCacheAccessor;
+
+    NSError *error = nil;
+    NSArray *allAccounts = [application allAccounts:&error];
+
+    XCTAssertNil(error);
+    XCTAssertNotNil(allAccounts);
+    XCTAssertEqual([allAccounts count], 1);
+}
+
+- (void)testAllAccount_whenFociTokenExistsForOtherClient_andAppMetadataWithNoFamilyIdInCache_shouldReturnNoAccountNoError
+{
+    //store at & rt in cache with foci flag
+    MSIDAADV2TokenResponse *msidResponse = [self msalDefaultTokenResponseWithAuthority:@"https://login.microsoftonline.com/common" familyId:@"1"];
+    MSIDConfiguration *configuration = [self msalDefaultConfigurationWithAuthority:@"https://login.microsoftonline.com/common"];
+
+    NSError *error = nil;
+    BOOL result = [self.tokenCacheAccessor saveTokensWithConfiguration:configuration
+                                                              response:msidResponse
+                                                               factory:[MSIDAADV2Oauth2Factory new]
+                                                               context:nil
+                                                                 error:&error];
+    XCTAssertTrue(result);
+    XCTAssertEqual([[self.tokenCacheAccessor allTokensWithContext:nil error:nil] count], 4);
+
+    NSString *clientId = @"myclient";
+
+    [self.tokenCacheAccessor updateAppMetadataWithFamilyId:@"" clientId:clientId authority:configuration.authority context:nil error:nil];
+
+    // Retrieve cache for a different clientId
+    NSArray *override = @[ @{ @"CFBundleURLSchemes" : @[@"msalmyclient"] } ];
+    [MSALTestBundle overrideObject:override forKey:@"CFBundleURLTypes"];
+
+    NSError *appError = nil;
+    __auto_type application = [[MSALPublicClientApplication alloc] initWithClientId:clientId error:&appError];
+    XCTAssertNil(appError);
+    application.tokenCache = self.tokenCacheAccessor;
+
+    NSArray *allAccounts = [application allAccounts:&error];
+
+    XCTAssertNil(error);
+    XCTAssertNotNil(allAccounts);
+    XCTAssertEqual([allAccounts count], 0);
+}
+
+- (void)testAllAccount_whenAccountExistsForOtherClient_andNotFociClient_shouldReturnNoAccountNoError
+{
+    //store at & rt in cache with foci flag
+    MSIDAADV2TokenResponse *msidResponse = [self msalDefaultTokenResponseWithAuthority:@"https://login.microsoftonline.com/common" familyId:nil];
+    MSIDConfiguration *configuration = [self msalDefaultConfigurationWithAuthority:@"https://login.microsoftonline.com/common"];
+
+    NSError *error = nil;
+    BOOL result = [self.tokenCacheAccessor saveTokensWithConfiguration:configuration
+                                                              response:msidResponse
+                                                               factory:[MSIDAADV2Oauth2Factory new]
+                                                               context:nil
+                                                                 error:&error];
+    XCTAssertTrue(result);
+    XCTAssertEqual([[self.tokenCacheAccessor allTokensWithContext:nil error:nil] count], 3);
+
+    NSString *clientId = @"myclient";
+
+    // Retrieve cache for a different clientId
+    NSArray *override = @[ @{ @"CFBundleURLSchemes" : @[@"msalmyclient"] } ];
+    [MSALTestBundle overrideObject:override forKey:@"CFBundleURLTypes"];
+
+    NSError *appError = nil;
+    __auto_type application = [[MSALPublicClientApplication alloc] initWithClientId:clientId error:&appError];
+    XCTAssertNil(appError);
+    application.tokenCache = self.tokenCacheAccessor;
+
+    NSArray *allAccounts = [application allAccounts:&error];
+
+    XCTAssertNil(error);
+    XCTAssertNotNil(allAccounts);
+    XCTAssertEqual([allAccounts count], 0);
+}
+
+#pragma mark - allAccountsFilteredByAuthority
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+- (void)testAllAccountsFilteredByAuthority_when2AccountExists_shouldReturnAccountsFilteredByAuthority
+{
+    [self msalStoreTokenResponseInCacheWithAuthority:@"https://login.microsoftonline.com/common"];
+    [self msalStoreTokenResponseInCacheWithAuthority:@"https://example.com/common"];
+    [self msalAddDiscoveryResponse];
+    
+    __auto_type application = [[MSALPublicClientApplication alloc] initWithClientId:UNIT_TEST_CLIENT_ID error:nil];
+    application.tokenCache = self.tokenCacheAccessor;
+    
+    XCTestExpectation *expectation = [self expectationWithDescription:@"Process Metadata."];
+    [application allAccountsFilteredByAuthority:^(NSArray<MSALAccount *> *accounts, NSError *error)
+    {
+        XCTAssertNil(error);
+        XCTAssertNotNil(accounts);
+        XCTAssertEqual([accounts count], 1);
+        
+        MSALAccount *account = accounts[0];
+        XCTAssertEqualObjects(account.username, @"fakeuser@contoso.com");
+        XCTAssertEqualObjects(account.environment, @"login.microsoftonline.com");
+        XCTAssertEqualObjects(account.homeAccountId.identifier, @"myuid.utid");
+        XCTAssertEqualObjects(account.homeAccountId.objectId, @"myuid");
+        XCTAssertEqualObjects(account.homeAccountId.tenantId, @"utid");
+        
+        [expectation fulfill];
+    }];
+    
+    [self waitForExpectationsWithTimeout:1 handler:nil];
+}
+
+- (void)testAllAccountsFilteredByAuthority_whenAccountWithAliasAuthorityExists_shouldReturnThatAccount
+{
+    [self msalStoreTokenResponseInCacheWithAuthority:@"https://login.windows.net/common"];
+    [self msalStoreTokenResponseInCacheWithAuthority:@"https://example.com/common"];
+    [self msalAddDiscoveryResponse];
+    
+    __auto_type application = [[MSALPublicClientApplication alloc] initWithClientId:UNIT_TEST_CLIENT_ID error:nil];
+    application.tokenCache = self.tokenCacheAccessor;
+    
+    XCTestExpectation *expectation = [self expectationWithDescription:@"Process Metadata."];
+    [application allAccountsFilteredByAuthority:^(NSArray<MSALAccount *> *accounts, NSError *error)
+     {
+         XCTAssertNil(error);
+         XCTAssertNotNil(accounts);
+         XCTAssertEqual([accounts count], 1);
+         
+         MSALAccount *account = accounts[0];
+         XCTAssertEqualObjects(account.username, @"fakeuser@contoso.com");
+         XCTAssertEqualObjects(account.environment, @"login.microsoftonline.com");
+         XCTAssertEqualObjects(account.homeAccountId.identifier, @"myuid.utid");
+         XCTAssertEqualObjects(account.homeAccountId.objectId, @"myuid");
+         XCTAssertEqualObjects(account.homeAccountId.tenantId, @"utid");
+         
+         [expectation fulfill];
+     }];
+    
+    [self waitForExpectationsWithTimeout:1 handler:nil];
+}
+#pragma clang diagnostic pop
+
+#pragma mark - loadAccountForHomeAccountId
+
+- (void)testAccountWithHomeAccountId_whenAccountExists_shouldReturnAccountNoError
+{
+    [self msalStoreTokenResponseInCache];
+    
+    NSString *clientId = UNIT_TEST_CLIENT_ID;
+    __auto_type application = [[MSALPublicClientApplication alloc] initWithClientId:clientId error:nil];
+    application.tokenCache = self.tokenCacheAccessor;
+    NSString *homeAccountId = @"myuid.utid";
+    
+    NSError *error;
+    __auto_type account = [application accountForHomeAccountId:homeAccountId error:&error];
+    
+    XCTAssertNil(error);
+    XCTAssertNotNil(account);
+    XCTAssertEqualObjects(account.username, @"fakeuser@contoso.com");
+    XCTAssertEqualObjects(account.environment, @"login.microsoftonline.com");
+    XCTAssertEqualObjects(account.homeAccountId.identifier, @"myuid.utid");
+    XCTAssertEqualObjects(account.homeAccountId.objectId, @"myuid");
+    XCTAssertEqualObjects(account.homeAccountId.tenantId, @"utid");
+}
+
+- (void)testAccountWithHomeAccountId_whenAccountExistsButNotMatching_shouldReturnNoAccountNoError
+{
+    [self msalStoreTokenResponseInCache];
+    
+    NSString *clientId = UNIT_TEST_CLIENT_ID;
+    __auto_type application = [[MSALPublicClientApplication alloc] initWithClientId:clientId error:nil];
+    application.tokenCache = self.tokenCacheAccessor;
+    NSString *homeAccountId = @"other_uid.other_utid";
+    
+    NSError *error;
+    __auto_type account = [application accountForHomeAccountId:homeAccountId error:&error];
+    
+    XCTAssertNil(error);
+    XCTAssertNil(account);
+}
+
+- (void)testAccountWithHomeAccountId_whenFociTokenExistsForOtherClient_andAppMetadataInCache_shouldReturnAccountNoError
+{
+    //store at & rt in cache with foci flag
+    MSIDAADV2TokenResponse *msidResponse = [self msalDefaultTokenResponseWithAuthority:@"https://login.microsoftonline.com/common" familyId:@"1"];
+    MSIDConfiguration *configuration = [self msalDefaultConfigurationWithAuthority:@"https://login.microsoftonline.com/common"];
+
+    NSError *error = nil;
+    BOOL result = [self.tokenCacheAccessor saveTokensWithConfiguration:configuration
+                                                              response:msidResponse
+                                                               factory:[MSIDAADV2Oauth2Factory new]
+                                                               context:nil
+                                                                 error:&error];
+    XCTAssertTrue(result);
+    XCTAssertEqual([[self.tokenCacheAccessor allTokensWithContext:nil error:nil] count], 4);
+
+    NSString *clientId = @"myclient";
+
+    MSIDAppMetadataCacheItem *appMetadata = [MSIDAppMetadataCacheItem new];
+    appMetadata.clientId = clientId;
+    appMetadata.environment = @"login.microsoftonline.com";
+    appMetadata.familyId = @"1";
+
+    [self.tokenCacheAccessor updateAppMetadataWithFamilyId:@"1" clientId:clientId authority:configuration.authority context:nil error:nil];
+
+    // Retrieve cache for a different clientId
+    NSArray *override = @[ @{ @"CFBundleURLSchemes" : @[@"msalmyclient"] } ];
+    [MSALTestBundle overrideObject:override forKey:@"CFBundleURLTypes"];
+
+    NSError *appError = nil;
+    __auto_type application = [[MSALPublicClientApplication alloc] initWithClientId:clientId error:&appError];
+    XCTAssertNil(appError);
+    application.tokenCache = self.tokenCacheAccessor;
+
+    NSString *homeAccountId = @"myuid.utid";
+    __auto_type account = [application accountForHomeAccountId:homeAccountId error:&error];
+
+    XCTAssertNil(error);
+    XCTAssertNotNil(account);
+}
+
+#pragma mark - loadAccountForUsername
+
+- (void)testAccountWithUsername_whenAccountExists_shouldReturnAccountNoError
+{
+    [self msalStoreTokenResponseInCache];
+    
+    NSString *clientId = UNIT_TEST_CLIENT_ID;
+    __auto_type application = [[MSALPublicClientApplication alloc] initWithClientId:clientId error:nil];
+    application.tokenCache = self.tokenCacheAccessor;
+    
+    NSError *error;
+    __auto_type account = [application accountForUsername:@"fakeuser@contoso.com" error:&error];
+    
+    XCTAssertNil(error);
+    XCTAssertNotNil(account);
+    XCTAssertEqualObjects(account.username, @"fakeuser@contoso.com");
+    XCTAssertEqualObjects(account.environment, @"login.microsoftonline.com");
+    XCTAssertEqualObjects(account.homeAccountId.identifier, @"myuid.utid");
+    XCTAssertEqualObjects(account.homeAccountId.objectId, @"myuid");
+    XCTAssertEqualObjects(account.homeAccountId.tenantId, @"utid");
+}
+
+- (void)testAccountWithUsername_whenAccountExistsButNotMatching_shouldReturnNoAccountNoError
+{
+    [self msalStoreTokenResponseInCache];
+    
+    NSString *clientId = UNIT_TEST_CLIENT_ID;
+    __auto_type application = [[MSALPublicClientApplication alloc] initWithClientId:clientId error:nil];
+    application.tokenCache = self.tokenCacheAccessor;
+    
+    NSError *error;
+    __auto_type account = [application accountForUsername:@"nonexisting@contoso.com" error:&error];
+    
+    XCTAssertNil(error);
+    XCTAssertNil(account);
+}
+
+- (void)testAccountWithUsername_whenFociTokenExistsForOtherClient_andNoAppMetadataInCache_shouldReturnAccountNoError
+{
+    //store at & rt in cache with foci flag
+    MSIDAADV2TokenResponse *msidResponse = [self msalDefaultTokenResponseWithAuthority:@"https://login.microsoftonline.com/common" familyId:@"1"];
+    MSIDConfiguration *configuration = [self msalDefaultConfigurationWithAuthority:@"https://login.microsoftonline.com/common"];
+
+    NSError *error = nil;
+    BOOL result = [self.tokenCacheAccessor saveTokensWithConfiguration:configuration
+                                                              response:msidResponse
+                                                               factory:[MSIDAADV2Oauth2Factory new]
+                                                               context:nil
+                                                                 error:&error];
+    XCTAssertTrue(result);
+    XCTAssertEqual([[self.tokenCacheAccessor allTokensWithContext:nil error:nil] count], 4);
+
+    // Retrieve cache for a different clientId
+    NSArray *override = @[ @{ @"CFBundleURLSchemes" : @[@"msalmyclient"] } ];
+    [MSALTestBundle overrideObject:override forKey:@"CFBundleURLTypes"];
+
+    NSString *clientId = @"myclient";
+    NSError *appError = nil;
+    __auto_type application = [[MSALPublicClientApplication alloc] initWithClientId:clientId error:&appError];
+    XCTAssertNil(appError);
+    application.tokenCache = self.tokenCacheAccessor;
+
+    __auto_type account = [application accountForUsername:@"fakeuser@contoso.com" error:&error];
+
+    XCTAssertNil(error);
+    XCTAssertNotNil(account);
+}
+
+#pragma mark - removeAccount
+
+- (void)testRemoveAccount_whenAccountExists_shouldRemoveAccount
+{
+    __auto_type application = [[MSALPublicClientApplication alloc] initWithClientId:UNIT_TEST_CLIENT_ID error:nil];
+    application.tokenCache = self.tokenCacheAccessor;
+    
+    // Make sure no users are showing up in the cache
+    XCTAssertEqual([application allAccounts:nil].count, 0);
+    
+    [self msalStoreTokenResponseInCache];
     
     // Make sure that the user is properly showing up in the cache
-    XCTAssertEqual([application users:nil].count, 1);
-    XCTAssertEqualObjects([application users:nil][0], user);
-
-    XCTAssertTrue([application removeUser:user error:&error]);
+    XCTAssertEqual([application allAccounts:nil].count, 1);
+    
+    MSIDAccount *account = [[MSIDAADV2Oauth2Factory new] accountFromResponse:[self msalDefaultTokenResponse]
+                                                               configuration:[self msalDefaultConfiguration]];
+    MSALAccount *msalAccount = [[MSALAccount alloc] initWithMSIDAccount:account];
+    
+    XCTAssertEqualObjects([application allAccounts:nil][0], msalAccount);
+    
+    NSError *error;
+    BOOL result = [application removeAccount:msalAccount error:&error];
+    
+    XCTAssertTrue(result);
     XCTAssertNil(error);
     
     // Make sure the user is now gone
-    XCTAssertEqual([application users:nil].count, 0);
+    XCTAssertEqual([application allAccounts:nil].count, 0);
 }
 
-- (void)testRemoveNonExistingUser
+- (void)testRemoveAccount_whenAccountExists_andIsFociClient_shouldRemoveAccount_andMarkClientNonFoci
 {
-    NSArray *override = @[ @{ @"CFBundleURLSchemes" : @[UNIT_TEST_DEFAULT_REDIRECT_SCHEME] } ];
+    // 1. Save response for a different clientId
+    NSString *authorityUrl = @"https://login.microsoftonline.com/utid";
+    MSIDAADV2TokenResponse *msidResponse = [self msalDefaultTokenResponseWithAuthority:authorityUrl familyId:@"1"];
+    MSIDConfiguration *configuration = [self msalDefaultConfigurationWithAuthority:authorityUrl];
+
+    BOOL result = [self.tokenCacheAccessor saveTokensWithConfiguration:configuration
+                                                              response:msidResponse
+                                                               factory:[MSIDAADV2Oauth2Factory new]
+                                                               context:nil
+                                                                 error:nil];
+
+    XCTAssertTrue(result);
+    XCTAssertEqual([[self.tokenCacheAccessor allTokensWithContext:nil error:nil] count], 4);
+
+    // 2. Create PublicClientApplication for a different app
+    NSArray *override = @[ @{ @"CFBundleURLSchemes" : @[@"msalmyclient"] } ];
     [MSALTestBundle overrideObject:override forKey:@"CFBundleURLTypes"];
-    
+
+    MSALPublicClientApplication *application = [[MSALPublicClientApplication alloc] initWithClientId:@"myclient" error:nil];
+    application.tokenCache = self.tokenCacheAccessor;
+    [self.tokenCacheAccessor updateAppMetadataWithFamilyId:@"1" clientId:@"myclient" authority:configuration.authority context:nil error:nil];
+
+    MSIDAuthority *authority = [MSIDAuthorityFactory authorityFromUrl:[NSURL URLWithString:authorityUrl] context:nil error:nil];
+
+    configuration = [[MSIDConfiguration alloc] initWithAuthority:authority
+                                                     redirectUri:UNIT_TEST_DEFAULT_REDIRECT_URI
+                                                        clientId:@"myclient"
+                                                          target:@"fakescope1 fakescope2"];
+
+    MSIDAccount *account = [[MSIDAADV2Oauth2Factory new] accountFromResponse:msidResponse
+                                                               configuration:configuration];
+    MSALAccount *msalAccount = [[MSALAccount alloc] initWithMSIDAccount:account];
+
+    XCTAssertEqualObjects([application allAccounts:nil][0], msalAccount);
+
+    // 3. Remove account
     NSError *error = nil;
+    result = [application removeAccount:msalAccount error:&error];
+
+    XCTAssertTrue(result);
+    XCTAssertNil(error);
+
+    // 4. Make sure the account is now gone
+    XCTAssertEqual([application allAccounts:nil].count, 0);
+
+    // 5. Make sure account and FOCI tokens are still in cache
+    MSIDAccount *cachedAccount = [self.tokenCacheAccessor getAccountForIdentifier:account.accountIdentifier authority:account.authority context:nil error:nil];
+    XCTAssertNotNil(cachedAccount);
+
+    MSIDRefreshToken *fociToken = [self.tokenCacheAccessor getRefreshTokenWithAccount:account.accountIdentifier familyId:@"1" configuration:configuration context:nil error:nil];
+    XCTAssertNotNil(fociToken);
+
+    MSIDRefreshToken *mrrtToken = [self.tokenCacheAccessor getRefreshTokenWithAccount:account.accountIdentifier familyId:nil configuration:configuration context:nil error:nil];
+    XCTAssertNil(mrrtToken);
+
+    [self msalAddDiscoveryResponse:authorityUrl appendDefaultHeaders:YES];
+
+    // 5. Try to acquire token silently, expecting to get interaction required back
+    // That means FOCI wasn't used by the app although present
+    XCTestExpectation *expectation = [self expectationWithDescription:@"Acquire token silent"];
+
+    [application acquireTokenSilentForScopes:@[@"fakescope1"]
+                                     account:msalAccount
+                             completionBlock:^(MSALResult * _Nullable result, NSError * _Nullable error) {
+
+
+                                 XCTAssertNil(result);
+                                 XCTAssertNotNil(error);
+                                 XCTAssertEqual(error.code, MSALErrorInteractionRequired);
+                                 [expectation fulfill];
+    }];
+
+    [self waitForExpectationsWithTimeout:1.0 handler:nil];
+}
+
+#endif
+
+- (void)testRemove_whenUserDontExist_shouldReturnTrueWithNoError
+{
+    __auto_type application = [[MSALPublicClientApplication alloc] initWithClientId:UNIT_TEST_CLIENT_ID error:nil];
     
-    MSALPublicClientApplication *application =
-    [[MSALPublicClientApplication alloc] initWithClientId:UNIT_TEST_CLIENT_ID
-                                                    error:nil];
-    application.tokenCache = [MSALTestTokenCache createTestAccessor];
+    MSALAccount *account = [[MSALAccount alloc] initWithUsername:@"user@contoso.com"
+                                                            name:@"name"
+                                                   homeAccountId:@"1.1234-5678-90abcdefg"
+                                                  localAccountId:@"1"
+                                                     environment:@"login.microsoftonline.com"
+                                                        tenantId:@"1234-5678-90abcdefg"];
     
-    NSDictionary* idTokenClaims = @{ @"home_oid" : @"29f3807a-4fb0-42f2-a44a-236aa0cb3f97"};
-    MSALIdToken *idToken = [[MSALIdToken alloc] initWithJson:idTokenClaims error:nil];
-    NSDictionary* clientInfoClaims = @{ @"uid" : @"29f3807a-4fb0-42f2-a44a-236aa0cb3f97", @"utid" : @"0287f963-2d72-4363-9e3a-5705c5b0f031"};
-    MSALClientInfo *clientInfo = [[MSALClientInfo alloc] initWithJson:clientInfoClaims error:nil];
-    MSALUser *user = [[MSALUser alloc] initWithIdToken:idToken clientInfo:clientInfo environment:@"login.microsoftonline.com"];
+    NSError *error;
+    BOOL result = [application removeAccount:account error:&error];
     
-    XCTAssertTrue([application removeUser:user error:&error]);
+    XCTAssertTrue(result);
     XCTAssertNil(error);
 }
 
 - (void)testRemoveUser_whenKeychainError_shouldReturnNoWithError
 {
-    NSArray *override = @[ @{ @"CFBundleURLSchemes" : @[UNIT_TEST_DEFAULT_REDIRECT_SCHEME] } ];
-    [MSALTestBundle overrideObject:override forKey:@"CFBundleURLTypes"];
+    __auto_type application = [[MSALPublicClientApplication alloc] initWithClientId:UNIT_TEST_CLIENT_ID error:nil];
     
-    NSError *error = nil;
+    MSALAccount *account = [MSALAccount new];
     
-    MSALPublicClientApplication *application =
-    [[MSALPublicClientApplication alloc] initWithClientId:UNIT_TEST_CLIENT_ID
-                                                    error:nil];
-
-    MSALUser *user = [MSALUser new];
-    
-    [MSALTestSwizzle instanceMethod:@selector(deleteAllTokensForUser:clientId:context:error:)
-                              class:[MSALTokenCache class]
-                              block:(id)^(id obj, MSALUser *user, NSString *clientId, id<MSALRequestContext> ctx, NSError **error)
+    [MSIDTestSwizzle instanceMethod:@selector(clearCacheForAccount:authority:clientId:familyId:context:error:)
+                              class:[MSIDDefaultTokenCacheAccessor class]
+                              block:(id)^(id obj, id account, MSIDAuthority *authority, NSString *clientId, NSString *familyId, id<MSIDRequestContext> ctx, NSError **error)
      {
-         (void)obj;
-         (void)user;
+         (void)authority;
+         (void)account;
          (void)clientId;
-         MSAL_KEYCHAIN_ERROR(ctx, -34018, @"fetching team ID.");
+         
+         *error = MSIDCreateError(NSOSStatusErrorDomain, -34018, nil, nil, nil, nil, nil, nil);
+         
          return NO;
      }];
     
-    XCTAssertFalse([application removeUser:user error:&error]);
+    NSError *error;
+    BOOL result = [application removeAccount:account error:&error];
+    
+    XCTAssertFalse(result);
     XCTAssertNotNil(error);
     XCTAssertEqualObjects(error.domain, NSOSStatusErrorDomain);
 }
 
+#pragma mark - Helpers
+
+- (void)msalStoreTokenResponseInCache
+{
+    [self msalStoreTokenResponseInCacheWithAuthority:@"https://login.microsoftonline.com/common"];
+}
+
+- (void)msalStoreTokenResponseInCacheWithAuthority:(NSString *)authorityString
+{
+    //store at & rt in cache
+    MSIDAADV2TokenResponse *msidResponse = [self msalDefaultTokenResponseWithAuthority:authorityString];
+    MSIDConfiguration *configuration = [self msalDefaultConfigurationWithAuthority:authorityString];
+    
+    NSError *error = nil;
+    BOOL result = [self.tokenCacheAccessor saveTokensWithConfiguration:configuration
+                                                              response:msidResponse
+                                                               factory:[MSIDAADV2Oauth2Factory new]
+                                                               context:nil
+                                                                 error:&error];
+    XCTAssertTrue(result);
+    XCTAssertNil(error);
+}
+
+- (void)msalAddDiscoveryResponse
+{
+    [self msalAddDiscoveryResponse:@"https://login.microsoftonline.com/common" appendDefaultHeaders:NO];
+}
+
+- (void)msalAddDiscoveryResponse:(NSString *)authority appendDefaultHeaders:(BOOL)appendDefaultHeaders
+{
+    __auto_type httpResponse = [[NSHTTPURLResponse alloc] initWithURL:[NSURL new] statusCode:200 HTTPVersion:nil headerFields:nil];
+    __auto_type requestUrlString = [NSString stringWithFormat:@"https://login.microsoftonline.com/common/discovery/instance?api-version=1.1&authorization_endpoint=%@%%2Foauth2%%2Fv2.0%%2Fauthorize", authority.msidWWWFormURLEncode];
+    __auto_type requestUrl = [requestUrlString msidUrl];
+    MSIDTestURLResponse *response = [MSIDTestURLResponse request:requestUrl
+                                                         reponse:httpResponse];
+    NSMutableDictionary *headers = [[MSIDDeviceId deviceId] mutableCopy];
+
+    if (appendDefaultHeaders)
+    {
+        [headers addEntriesFromDictionary:[MSIDTestURLResponse msidDefaultRequestHeaders]];
+    }
+
+    headers[@"Accept"] = @"application/json";
+    headers[@"x-ms-PkeyAuth"] = @"1.0";
+    response->_requestHeaders = headers;
+    __auto_type responseJson = @{
+                                 @"tenant_discovery_endpoint" : @"https://login.microsoftonline.com/common/v2.0/.well-known/openid-configuration",
+                                 @"metadata" : @[
+                                         @{
+                                             @"preferred_network" : @"login.microsoftonline.com",
+                                             @"preferred_cache" : @"login.windows.net",
+                                             @"aliases" : @[@"login.microsoftonline.com", @"login.windows.net"]
+                                             }
+                                         ]
+                                 };
+    [response setResponseJSON:responseJson];
+    [MSIDTestURLSession addResponse:response];
+}
+
+- (MSIDAADV2TokenResponse *)msalDefaultTokenResponse
+{
+    return [self msalDefaultTokenResponseWithAuthority:@"https://login.microsoftonline.com/common"];
+}
+
+- (MSIDAADV2TokenResponse *)msalDefaultTokenResponseWithAuthority:(NSString *)authorityString
+{
+    return [self msalDefaultTokenResponseWithAuthority:authorityString familyId:nil];
+}
+
+- (MSIDAADV2TokenResponse *)msalDefaultTokenResponseWithAuthority:(NSString *)authorityString familyId:(NSString *)familyId
+{
+    NSDictionary* idTokenClaims = @{ @"home_oid" : @"myuid", @"preferred_username": @"fakeuser@contoso.com"};
+    NSDictionary* clientInfoClaims = @{ @"uid" : @"myuid", @"utid" : @"utid"};
+    
+    NSString *rawIdToken = [NSString stringWithFormat:@"fakeheader.%@.fakesignature",
+                            [NSString msidBase64UrlEncodedStringFromData:[NSJSONSerialization dataWithJSONObject:idTokenClaims options:0 error:nil]]];
+    NSString *rawClientInfo = [NSString msidBase64UrlEncodedStringFromData:[NSJSONSerialization dataWithJSONObject:clientInfoClaims options:0 error:nil]];
+
+    NSMutableDictionary *responseDict = [@{
+                                          @"access_token": @"access_token",
+                                          @"refresh_token": @"fakeRefreshToken",
+                                          @"authority" : authorityString,
+                                          @"scope": @"fakescope1 fakescope2",
+                                          @"client_id": UNIT_TEST_CLIENT_ID,
+                                          @"id_token": rawIdToken,
+                                          @"client_info": rawClientInfo,
+                                          @"expires_on" : @"1"
+                                          } mutableCopy];
+
+    if (familyId)
+    {
+        responseDict[@"foci"] = familyId;
+    }
+
+    MSIDAADV2TokenResponse *msidResponse =
+    [[MSIDAADV2TokenResponse alloc] initWithJSONDictionary:responseDict
+                                                     error:nil];
+    
+    return msidResponse;
+}
+
+- (MSIDConfiguration *)msalDefaultConfiguration
+{
+    MSIDAuthority *authority = [MSIDAuthorityFactory authorityFromUrl:[NSURL URLWithString:@"https://login.microsoftonline.com/common"] context:nil error:nil];
+    
+    return [[MSIDConfiguration alloc] initWithAuthority:authority
+                                            redirectUri:UNIT_TEST_DEFAULT_REDIRECT_URI
+                                               clientId:UNIT_TEST_CLIENT_ID
+                                                 target:@"fakescope1 fakescope2"];
+}
+
+- (MSIDConfiguration *)msalDefaultConfigurationWithAuthority:(NSString *)authorityString
+{
+    MSIDAuthority *authority = [MSIDAuthorityFactory authorityFromUrl:[NSURL URLWithString:authorityString] context:nil error:nil];
+    
+    return [[MSIDConfiguration alloc] initWithAuthority:authority
+                                            redirectUri:UNIT_TEST_DEFAULT_REDIRECT_URI
+                                               clientId:UNIT_TEST_CLIENT_ID
+                                                 target:@"fakescope1 fakescope2"];
+}
 
 @end

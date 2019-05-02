@@ -6,150 +6,135 @@
 #import <MSAL/MSAL.h>
 #import "AuthenticationManager.h"
 
+@interface AuthenticationManager()
 
-@implementation AuthenticationManager
-
-
-#pragma mark - singleton
-+ (AuthenticationManager *)sharedInstance
-{
-    static AuthenticationManager *sharedInstance;
-    static dispatch_once_t onceToken;
-    
-    // Initialize the AuthenticationManager only once.
-    dispatch_once(&onceToken, ^{
-        sharedInstance = [[AuthenticationManager alloc] init];
-    });
-    
-    return sharedInstance;
-}
-
-#pragma mark - init
-- (void)initWithAuthority:(NSString*)authority_
-               completion:(void (^)(NSError* error))completion
-{
-    
-    //Get the MSAL client Id for this Azure app registration. We store it in the main bundle
-    NSDictionary *dictionary = [NSDictionary dictionaryWithContentsOfFile:[[NSBundle mainBundle] pathForResource:@"Info" ofType:@"plist"]];
-    NSArray *array = [dictionary objectForKey:@"CFBundleURLTypes"];
-    NSString *redirectUrl = [self getRedirectUrlFromMSALArray:(array)];
-    
-    NSRange range = [redirectUrl rangeOfString:@"msal"];
-    NSString *kClientId = [[redirectUrl substringFromIndex:NSMaxRange(range)] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
-    NSLog(@"client id = %@", kClientId);
-
-    self.clientId = kClientId;
-    self.authorty = authority_;
-    
-    NSError *error_ = nil;
-    @try {
-        self.msalClient = [[MSALPublicClientApplication alloc] initWithClientId:kClientId error:&error_];
-        if (error_) {
-            completion(error_);
-        } else {
-            completion(nil);}
-        
-    }
-    @catch(NSException *exception) {
-        NSMutableDictionary * info = [NSMutableDictionary dictionary];
-        [info setValue:exception.name forKey:@"ExceptionName"];
-        [info setValue:exception.reason forKey:@"ExceptionReason"];
-        [info setValue:exception.callStackReturnAddresses forKey:@"ExceptionCallStackReturnAddresses"];
-        [info setValue:exception.callStackSymbols forKey:@"ExceptionCallStackSymbols"];
-        [info setValue:exception.userInfo forKey:@"ExceptionUserInfo"];
-        
-        NSError *error = [[NSError alloc] initWithDomain:MSALErrorDomain code:MSALErrorInternal userInfo:info];
-        //use error
-        completion(error);
-    }
-    
-}
-
-
-#pragma mark - acquire token
-
-- (void)acquireAuthTokenWithScopes:(NSArray<NSString *> *)scopes
-                        completion:(void(^)(MSALErrorCode error))completion {
-
-    NSError  __autoreleasing  *error_ = nil;
-    
-    NSArray<MSALUser *> *users = [self.msalClient users:(&error_)];
-    
-    // We check to see if we have a current logged in user. If we don't, then we need to sign someone in.
-    // We throw an interactionRequired so that we trigger the interactive signin.
-
-    if (self.msalClient == nil) {
-        completion(MSALErrorInternal);
- 
-    }
-    
-    if (users == nil | [users count] == 0) {
-        @try {
-            [self.msalClient acquireTokenForScopes:scopes completionBlock:^(MSALResult *result, NSError *error) {
-                if (error) {
-                    completion(error.code);
-                } else {
-                    self.clientId = self.msalClient.clientId;
-                    self.accessToken = result.accessToken;
-
-                    self.user = result.user;
-                    self.userID = result.user.displayableId;
-                    completion(0);
-                    
-                }
-            }];
-        }
-        @catch (NSException *exception) {
-            completion(MSALErrorInternal);
-        }
-
-    } else {
-        @try {
-            self.user =  [users objectAtIndex:0];
-            [self.msalClient acquireTokenSilentForScopes:scopes user:self.user completionBlock:^(MSALResult *result, NSError *error) {
-                if (error) {
-                    completion(MSALErrorInteractionRequired);
-                } else {
-                    self.clientId = self.msalClient.clientId;
-                    self.accessToken = result.accessToken;
-                    self.userID = result.user.displayableId;
-
-                    completion(0);
-                    
-                }
-            }];
-        }
-        @catch (NSException *exception) {
-            completion(MSALErrorInternal);
-        }
-        
-    }
-
-}
-
--(void) acquireAuthTokenCompletion:(void (^)(MSALErrorCode *error))completion{
-}
-
-#pragma mark - Get client id from bundle
-
-- (NSString *) getRedirectUrlFromMSALArray:(NSArray *) array {
-    NSDictionary *arrayElement = [array objectAtIndex: 0];
-    NSArray *redirectArray = [arrayElement valueForKeyPath:@"CFBundleURLSchemes"];
-    NSString *substring = [redirectArray objectAtIndex:0];
-    return substring;
-}
-
-
-#pragma mark - clear credentials
- //Clears the ADAL token cache and the cookie cache.
-- (void)clearCredentials {
-
-    NSError *error_ = nil;
-    [self.msalClient removeUser:self.user error:&error_];
-}
+@property (nonatomic) NSString *accessToken;
+@property (nonatomic) MSALPublicClientApplication *msalClient;
+@property (nonatomic) MSALAccount *account;
 
 @end
 
+@implementation AuthenticationManager
+
+- (instancetype)initWithAuthority:(MSALAuthority *)authority
+                         clientId:(NSString *)clientId
+                            error:(NSError **)error
+{
+    self = [super init];
+    if (self) {
+        MSALPublicClientApplicationConfig *config = [[MSALPublicClientApplicationConfig alloc] initWithClientId:clientId];
+        config.authority = authority;
+        
+        NSError *localError;
+        _msalClient = [[MSALPublicClientApplication alloc] initWithConfiguration:config error:&localError];
+        
+        if (localError) {
+            if (error) *error = localError;
+            return nil;
+        }
+    }
+    
+    return self;
+}
+
+- (void)acquireAuthTokenWithScopes:(NSArray<NSString *> *)scopes
+                        completion:(void(^)(BOOL success, NSError *error))completion
+{
+    assert(completion);
+    
+    MSALCompletionBlock completionBlock;
+    __block __weak MSALCompletionBlock weakCompletionBlock;
+    weakCompletionBlock = completionBlock = ^(MSALResult *result, NSError *error)
+    {
+        if (!error) {
+            self.accessToken = result.accessToken;
+            self.account = result.account;
+            completion(YES, nil);
+            
+            return;
+        }
+        
+        if ([error.domain isEqualToString:MSALErrorDomain]) {
+            switch (error.code) {
+                case MSALErrorInteractionRequired:
+                {
+                    // Interactive auth will be required
+                    __auto_type interactiveParameters = [[MSALInteractiveTokenParameters alloc] initWithScopes:scopes];
+                    [self.msalClient acquireTokenWithParameters:interactiveParameters
+                                                completionBlock:weakCompletionBlock];
+                    
+                    return;
+                }
+                    
+                case MSALErrorServerDeclinedScopes:
+                {
+                    NSArray *declinedScopes = error.userInfo[MSALDeclinedScopesKey];
+                    NSLog(@"The following scopes were declined: %@", declinedScopes);
+                    
+                    NSArray *grantedScopes = error.userInfo[MSALGrantedScopesKey];
+                    NSLog(@"Trying to acquire a token with granted scopes: %@", grantedScopes);
+                    
+                    NSError *localError;
+                    NSArray<MSALAccount *> *accounts = [self.msalClient allAccounts:&localError];
+                    
+                    if (localError) {
+                        completion(NO, localError);
+                        return;
+                    }
+                    
+                    __auto_type silentParameters = [[MSALSilentTokenParameters alloc] initWithScopes:grantedScopes account:accounts.firstObject];
+                    [self.msalClient acquireTokenSilentWithParameters:silentParameters
+                                                      completionBlock:weakCompletionBlock];
+                    return;
+                }
+                    
+                case MSALErrorInternal:
+                {
+                    // Log the error, then inspect the MSALInternalErrorCodeKey
+                    // in the userInfo dictionary.
+                    // More detailed information about the specific error
+                    // under MSALInternalErrorCodeKey can be found in MSALInternalError enum.
+                    NSLog(@"Failed with internal MSAL error %@", error);
+                    
+                    break;
+                }
+                    
+                default:
+                    NSLog(@"Failed with unknown MSAL error %@", error);
+                    break;
+            }
+        }
+        
+        completion(NO, error);
+    };
+    
+    
+    NSError *localError;
+    NSArray<MSALAccount *> *accounts = [self.msalClient allAccounts:&localError];
+    
+    if (localError) {
+        completion(NO, localError);
+        return;
+    }
+    
+    if (accounts.count > 0) {
+        __auto_type silentParameters = [[MSALSilentTokenParameters alloc] initWithScopes:scopes account:accounts.firstObject];
+        [self.msalClient acquireTokenSilentWithParameters:silentParameters completionBlock:completionBlock];
+    } else {
+        __auto_type interactiveParameters = [[MSALInteractiveTokenParameters alloc] initWithScopes:scopes];
+        [self.msalClient acquireTokenWithParameters:interactiveParameters completionBlock:completionBlock];
+    }
+}
+
+- (void)clearCredentials
+{
+    NSError *error;
+    [self.msalClient removeAccount:self.account error:&error];
+    
+    if (error) NSLog(@"Error: %@", error);
+}
+
+@end
 
 // *********************************************************
 //

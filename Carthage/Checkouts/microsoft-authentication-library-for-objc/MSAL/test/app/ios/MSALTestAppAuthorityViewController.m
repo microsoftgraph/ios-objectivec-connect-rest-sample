@@ -27,6 +27,10 @@
 
 #import "MSALTestAppAuthorityViewController.h"
 #import "MSALTestAppSettings.h"
+#import "MSALAuthority.h"
+#import "MSIDAuthority.h"
+#import "MSALAuthorityFactory.h"
+#import "MSALAuthority_Internal.h"
 
 @interface MSALTestAppAuthorityViewController ()
 
@@ -34,7 +38,7 @@
 
 @implementation MSALTestAppAuthorityViewController
 {
-    NSMutableArray *_authorities;
+    NSString *_userDefaultsKey;
 }
 
 + (instancetype)sharedController
@@ -49,35 +53,86 @@
     return s_controller;
 }
 
-- (id)init
+- (instancetype)init
 {
-    if (!(self = [super init]))
+    return [self initWithAuthorities:[MSALTestAppSettings aadAuthorities]
+              keyForSavedAuthorities:@"saved_aadAuthorities"];
+}
+
+- (instancetype)initWithAuthorities:(NSArray<NSString *> *)aadAuthorities
+              keyForSavedAuthorities:(NSString *)key
+{
+    self = [super init];
+    if(self)
     {
-        return nil;
+        _authorities = [aadAuthorities mutableCopy];
+        _userDefaultsKey = key;
+        _savedAuthorities = [[NSUserDefaults standardUserDefaults] objectForKey:key];
+        if (!_savedAuthorities)
+        {
+            _savedAuthorities = [NSMutableArray array];
+        }
+        
+        for(NSString* authority in _savedAuthorities)
+        {
+            if (![_authorities containsObject:authority])
+            {
+                [_authorities addObject:authority];
+            }
+        }
     }
-    
-    NSString *currentAuthority = MSALTestAppSettings.settings.authority;
-    _authorities = [[MSALTestAppSettings authorities] mutableCopy];
-    if (currentAuthority && ![_authorities containsObject:currentAuthority])
-    {
-        [_authorities addObject:currentAuthority];
-    }
-    
     return self;
 }
 
 #pragma mark -
 #pragma mark Methods for subclasses to override
 
+- (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath
+{
+    (void)tableView;
+    [self rowSelected:[indexPath indexAtPosition:1]];
+    [self.navigationController popToRootViewControllerAnimated:YES];
+}
+
 - (void)viewDidLoad
 {
-    
     self.navigationItem.title = @"Select Authority";
+    self.navigationItem.rightBarButtonItem = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemAdd target:self action:@selector(addAuthority:)];
     [super viewDidLoad];
 }
 
-- (void)refresh
+- (void)addAuthority:(id)sender
 {
+    UIAlertController *controller = [UIAlertController alertControllerWithTitle:@"Add authority" message:nil preferredStyle:UIAlertControllerStyleAlert];
+    [controller addTextFieldWithConfigurationHandler:^(UITextField * _Nonnull textField) {
+        textField.placeholder = @"Authority";
+    }];
+    
+    [controller addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
+    [controller addAction:[UIAlertAction actionWithTitle:@"Add" style:UIAlertActionStyleDefault handler:^(UIAlertAction * _Nonnull action) {
+        NSString *authority = controller.textFields[0].text;
+        [self saveAuthority:authority];
+    }]];
+    
+    [self presentViewController:controller animated:YES completion:nil];
+    
+}
+
+- (void)saveAuthority:(NSString *)authority
+{
+    if (![_authorities containsObject:authority])
+    {
+        [_authorities addObject:authority];
+    }
+    
+    if (![_savedAuthorities containsObject:authority])
+    {
+        [_savedAuthorities addObject:authority];
+    }
+
+    [[NSUserDefaults standardUserDefaults] setObject:_savedAuthorities forKey:_userDefaultsKey];
+    
+    [self refresh];
 }
 
 - (NSInteger)numberOfRows
@@ -91,6 +146,7 @@
     {
         return @"(default)";
     }
+    
     return _authorities[row - 1];
 }
 
@@ -103,24 +159,25 @@
     }
     else
     {
-        settings.authority = _authorities[row - 1];
+        MSALAuthority *authority = [MSALAuthorityFactory authorityFromUrl:[NSURL URLWithString:_authorities[row - 1]] context:nil error:nil];
+        settings.authority = authority;
     }
 }
 
 - (NSInteger)currentRow
 {
-    NSString *currentAuthority = MSALTestAppSettings.settings.authority;
+    __auto_type currentAuthority = MSALTestAppSettings.settings.authority;
     if (currentAuthority == nil)
     {
         return 0;
     }
-    return [_authorities indexOfObjectIdenticalTo:currentAuthority] + 1;
+    return [_authorities indexOfObject:currentAuthority.url.absoluteString] + 1;
 }
 
 + (NSString *)currentTitle
 {
-    NSString *currentAuthority = MSALTestAppSettings.settings.authority;
-    return currentAuthority ? currentAuthority : @"(default)";
+    __auto_type currentAuthority = MSALTestAppSettings.settings.authority;
+    return currentAuthority ? currentAuthority.msidAuthority.url.absoluteString : @"(default)";
 }
 
 

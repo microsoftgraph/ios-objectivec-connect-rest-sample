@@ -27,15 +27,14 @@
 
 #import "MSALPublicClientApplication.h"
 
-// If modifying this make sure UT_SLICE_PARAMS_QUERY matches
-#define DEFAULT_SLICE_PARAMS
-
-@class MSALTokenCache;
+@class MSIDDefaultTokenCacheAccessor;
+@class MSIDAuthority;
 
 @interface MSALPublicClientApplication (Internal)
 
-@property (nullable) MSALTokenCache *tokenCache;
+@property (nonatomic, nonnull) MSIDDefaultTokenCacheAccessor *tokenCache;
 
-+ (nullable NSDictionary<NSString *, NSString *> *)defaultSliceParameters;
++ (nonnull NSOrderedSet *)defaultOIDCScopes;
+- (BOOL)shouldDisableValidationForAuthority:(nonnull MSIDAuthority *)authority;
 
 @end

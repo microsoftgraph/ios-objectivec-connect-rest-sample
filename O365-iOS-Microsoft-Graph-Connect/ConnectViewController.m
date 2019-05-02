@@ -7,128 +7,105 @@
 #import "SendMailViewController.h"
 #import "AuthenticationManager.h"
 #import <MSAL/MSAL.h>
-#import <MSAL/MSALError.h>
 
-// You will set your application's clientId and redirect URI.
-NSString *  kClientId;
-NSString * const kAuthority   = @"https://login.microsoftonline.com/common/v2.0";
-NSString * const kResourceId  = @"https://graph.microsoft.com";
+// Set your application's clientId.
+NSString *const kClientId = @"YOUR CLIENT ID";
+NSString *const kAuthority = @"https://login.microsoftonline.com/common";
 
 @interface ConnectViewController()
 
-
 @property (weak, nonatomic) IBOutlet UIActivityIndicatorView *activityIndicator;
 @property (weak, nonatomic) IBOutlet UIButton *connectButton;
-@property (weak, nonatomic) NSArray *scopes;
+@property (nonatomic) AuthenticationManager *authManager;
+
 @end
 
 @implementation ConnectViewController
 
-- (void)viewWillAppear:(BOOL)animated {
-    [super viewWillAppear:animated];
-
+- (void)prepareForSegue:(UIStoryboardSegue *)segue sender:(id)sender
+{
+    if ([segue.identifier isEqualToString:@"showSendMail"])
+    {
+        SendMailViewController *sendMailViewController = segue.destinationViewController;
+        sendMailViewController.authManager = self.authManager;
+    }
 }
 
-- (void)viewWillDisappear:(BOOL)animated {
-    [super viewWillDisappear:animated];
-    
-}
+#pragma mark - IBAction
 
-#pragma mark - button interaction (Connect)
-- (IBAction)connectTapped:(id)sender {
-    [self showLoadingUI:YES];
+- (IBAction)connectTapped:(id)sender
+{
     [self processConnect];
 }
 
-#pragma mark - Connect
-- (void)processConnect {
-    
+#pragma mark - Private
 
-    self.scopes =  [NSArray arrayWithObjects:@"https://graph.microsoft.com/Mail.ReadWrite", @"https://graph.microsoft.com/Mail.Send", @"https://graph.microsoft.com/Files.ReadWrite", @"https://graph.microsoft.com/User.ReadBasic.All", nil];
+- (void)processConnect
+{
+    __auto_type scopes = @[@"https://graph.microsoft.com/Mail.ReadWrite",
+                           @"https://graph.microsoft.com/Mail.Send",
+                           @"https://graph.microsoft.com/Files.ReadWrite",
+                           @"https://graph.microsoft.com/User.ReadBasic.All"];
 
-    AuthenticationManager *authManager = [AuthenticationManager sharedInstance];
-
-    
-    [authManager initWithAuthority:kAuthority
-                          completion:^(NSError* error) {
-                              if(error){
-                                  [self showLoadingUI:NO];
-                                  [self handleADAuthenticationError:error];
-                              }
-                              else{
-                                  [authManager acquireAuthTokenWithScopes:self.scopes completion:^(MSALErrorCode error) {
-                                      if(error){
-                                          [self showLoadingUI:NO];
-                                          [self handleMSALAuthenticationError:&error];
-                                      }
-                                      else{
-                                          NSLog(@"%@", [authManager userID]);
-                                          
-                                          [[NSOperationQueue mainQueue] addOperationWithBlock:^{
-                                              [self performSegueWithIdentifier:@"showSendMail" sender:nil];
-                                              [self showLoadingUI:NO];
-                                          }];
-                                      }
-                                  }];
-                              }
-
-                          }];
-    
-    
+    [self showLoadingUI:YES];
+    [self.authManager acquireAuthTokenWithScopes:scopes completion:^(BOOL success, NSError *error) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [self showLoadingUI:NO];
+            
+            if (error) {
+                [self showError:error];
+                return;
+            }
+            
+            NSLog(@"%@", self.authManager.account.username);
+            [self performSegueWithIdentifier:@"showSendMail" sender:nil];
+        });
+     }];
 }
 
-
-#pragma mark - Navigation
-- (void)prepareForSegue:(UIStoryboardSegue *)segue sender:(id)sender {
-    if([segue.identifier isEqualToString:@"showSendMail"]){
-        ;
+- (AuthenticationManager *)authManager
+{
+    if (!_authManager) {
+        NSURL *authorityUrl = [[NSURL alloc] initWithString:kAuthority];
+        assert(authorityUrl);
+        __auto_type authority = [[MSALAADAuthority alloc] initWithURL:authorityUrl error:nil];
+        assert(authority);
+        
+        NSAssert(![kClientId isEqualToString:@"YOUR CLIENT ID"], @"ConnectViewController: Provide your client id first!");
+        
+        NSError *error;
+        _authManager = [[AuthenticationManager alloc] initWithAuthority:authority clientId:kClientId error:&error];
+        
+        if (error) [self showError:error];
     }
+    
+    return _authManager;
 }
 
-#pragma mark - helper
-
-
-
-
-- (void)showLoadingUI:(BOOL)loading {
-    if(loading){
+- (void)showLoadingUI:(BOOL)loading
+{
+    if (loading) {
         [self.activityIndicator startAnimating];
         [self.connectButton setTitle:@"Connecting..." forState:UIControlStateNormal];
         self.connectButton.enabled = NO;
-    }
-    else{
+    } else {
         [self.activityIndicator stopAnimating];
         [self.connectButton setTitle:@"Connect to Office 365" forState:UIControlStateNormal];
         self.connectButton.enabled = YES;
     }
 }
 
-- (void)handleADAuthenticationError:(NSError*)error {
-  //  NSLog(@"Error\nProtocol Code %@\nDescription %s", &error, "");
+- (void)showError:(NSError *)error
+{
+    NSLog(@"Error: %@", error);
+    
     UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Error"
                                                                    message:@"Please see the log for more details"
                                                             preferredStyle:UIAlertControllerStyleAlert];
     [alert addAction:[UIAlertAction actionWithTitle:@"Close"
-                                              style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
-                                                  ;
-                                              }]];
-    [self presentViewController:alert animated:YES completion:^{
-        ;
-    }];
-}
-
-- (void)handleMSALAuthenticationError:(MSALErrorCode*)error {
-    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Error"
-                                                                   message:@"Please see the log for more details"
-                                                            preferredStyle:UIAlertControllerStyleAlert];
-    [alert addAction:[UIAlertAction actionWithTitle:@"Close"
-                                              style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
-                                                  ;
-                                              }]];
-    [self presentViewController:alert animated:YES completion:^{
-        ;
-    }];
-
+                                              style:UIAlertActionStyleDefault handler:nil]];
+    
+    [self presentViewController:alert animated:YES completion:nil];
 }
 
 @end

@@ -102,7 +102,7 @@
     [self loadPhoto];
     [self loadEvents];
     
-    _nameLabel.text = [NSString stringWithFormat:@"Welcome, %@", [[SampleMSALUtil sharedUtil] currentUser:nil].name];
+    _nameLabel.text = [NSString stringWithFormat:@"Welcome, %@", [[SampleMSALUtil sharedUtil] currentAccount:nil].username];
 }
 
 - (void)loadPhoto
@@ -125,9 +125,8 @@
 {
     SampleCalendarUtil *util = [SampleCalendarUtil sharedUtil];
     _events = [util cachedEvents];
-    _keys = [[_events allKeys] sortedArrayUsingComparator:^NSComparisonResult(id  _Nonnull obj1, id  _Nonnull obj2) {
-        return [obj1 compare:obj2];
-    }];
+    [self updateKeys];
+    
     [_tableView reloadData];
     [util getEvents:^(NSDictionary<NSDate *, NSArray<SampleCalendarEvent *> *> *events, NSError *error) {
         if (error)
@@ -136,7 +135,16 @@
         }
         
         _events = events;
+        [self updateKeys];
+        
         [_tableView reloadData];
+    }];
+}
+
+- (void)updateKeys
+{
+    _keys = [[_events allKeys] sortedArrayUsingComparator:^NSComparisonResult(id  _Nonnull obj1, id  _Nonnull obj2) {
+        return [obj1 compare:obj2];
     }];
 }
 

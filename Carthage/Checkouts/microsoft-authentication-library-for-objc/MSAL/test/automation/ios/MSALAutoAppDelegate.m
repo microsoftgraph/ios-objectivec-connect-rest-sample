@@ -26,6 +26,9 @@
 //------------------------------------------------------------------------------
 
 #import "MSALAutoAppDelegate.h"
+#import "MSALPublicClientApplication.h"
+#import "MSIDAutomationMainViewController.h"
+#import <MSAL/MSAL.h>
 
 @implementation MSALAutoAppDelegate
 
@@ -33,6 +36,9 @@
 {
     (void)application;
     (void)launchOptions;
+    [MSALGlobalConfig.loggerConfig setLogCallback:^(MSALLogLevel level, NSString * _Nullable message, BOOL containsPII) {
+        [MSIDAutomationMainViewController forwardIdentitySDKLog:message];
+    }];
     
     return YES;
 }
@@ -72,26 +78,12 @@
     (void)application;
 }
 
-
-- (BOOL)application:(UIApplication *)app openURL:(NSURL *)url sourceApplication:(nullable NSString *)sourceApplication annotation:(nonnull id)annotation
-{
-    (void)app;
-    (void)url;
-    (void)sourceApplication;
-    (void)annotation;
-    NSLog(@"iOS 8 OpenURL Method!");
-    
-    return YES;
-}
-
 - (BOOL)application:(UIApplication *)app openURL:(NSURL *)url options:(NSDictionary<NSString *,id> *)options
 {
     (void)app;
-    (void)url;
     (void)options;
-    NSLog(@"iOS 9 OpenURL Method!");
     
-    [MSALPublicClientApplication handleMSALResponse:url];
+    [MSALPublicClientApplication handleMSALResponse:url sourceApplication:options[UIApplicationOpenURLOptionsSourceApplicationKey]];
    
     return YES;
 }

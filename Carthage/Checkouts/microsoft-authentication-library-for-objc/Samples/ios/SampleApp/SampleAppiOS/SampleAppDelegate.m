@@ -53,7 +53,7 @@
     
     _rootController = [UIViewController new];
     
-    if ([[SampleMSALUtil sharedUtil] currentUser:nil])
+    if ([[SampleMSALUtil sharedUtil] currentAccount:nil])
     {
         [self setCurrentViewController:[SampleMainViewController sharedViewController]];
     }
@@ -73,7 +73,7 @@
             openURL:(NSURL *)url
             options:(NSDictionary<UIApplicationOpenURLOptionsKey,id> *)options
 {
-    if ([MSALPublicClientApplication handleMSALResponse:url])
+    if ([MSALPublicClientApplication handleMSALResponse:url sourceApplication:options[UIApplicationOpenURLOptionsSourceApplicationKey]])
     {
         NSLog(@"This URL is handled by MSAL");
     }

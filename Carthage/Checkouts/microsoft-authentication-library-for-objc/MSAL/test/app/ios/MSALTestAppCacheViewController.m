@@ -27,45 +27,48 @@
 
 #import "MSALTestAppCacheViewController.h"
 #import "MSALTestAppSettings.h"
-#import "MSALAccessTokenCacheItem.h"
-#import "MSALRefreshTokenCacheItem.h"
-#import "MSALKeychainTokenCache.h"
-#import "MSALAccessTokenCacheItem+TestAppUtil.h"
-#import "NSURL+MSALExtensions.h"
+#import "NSURL+MSIDExtensions.h"
+#import "MSIDDefaultTokenCacheAccessor.h"
+#import "MSIDKeychainTokenCache.h"
+#import "MSALAccount+Internal.h"
+#import "MSIDBaseToken.h"
+#import "MSIDRefreshToken.h"
+#import "MSIDAccessToken.h"
+#import "MSIDIdToken.h"
+#import "MSIDLegacyTokenCacheAccessor.h"
+#import "MSIDLegacyTokenCacheKey.h"
+#import "MSIDAccount.h"
+#import "MSIDAccountCredentialCache.h"
+#import "MSIDAccountIdentifier.h"
+#import "MSIDLegacyRefreshToken.h"
+#import "MSIDLegacyAccessToken.h"
+#import "NSOrderedSet+MSIDExtensions.h"
+#import "MSIDAADV2Oauth2Factory.h"
+#import "MSIDAuthority.h"
+#import "MSIDAppMetadataCacheItem.h"
+#import "MSIDConfiguration.h"
+#import "MSALAuthority_Internal.h"
 
-@interface MSALTestAppCacheRowItem : NSObject
-
-@property BOOL environment;
-@property MSALBaseTokenCacheItem *item;
-@property NSString *title;
-
-@end
-
-@implementation MSALTestAppCacheRowItem
-
-@end
+#define BAD_REFRESH_TOKEN @"bad-refresh-token"
+#define APP_METADATA @"app-metadata"
+static NSString *const s_defaultAuthorityUrlString = @"https://login.microsoftonline.com/common";
 
 @interface MSALTestAppCacheViewController () <UITableViewDataSource, UITableViewDelegate>
+
+@property (nonatomic) MSIDAccountCredentialCache *tokenCache;
+@property (nonatomic) MSIDDefaultTokenCacheAccessor *defaultAccessor;
+@property (nonatomic) MSIDLegacyTokenCacheAccessor *legacyAccessor;
+@property (strong) NSArray *accounts;
+@property (strong) NSArray *appMetadataEntries;
 
 @end
 
 @implementation MSALTestAppCacheViewController
-
-#define BAD_REFRESH_TOKEN @"bad-refresh-token"
-
 {
+    NSMutableDictionary<NSString *, NSMutableArray *> *_tokensPerAccount;
+    NSMutableDictionary *_cacheSections;
+    NSArray *_cacheSectionTitles;
     UITableView *_cacheTableView;
-    
-    NSMutableDictionary *_cacheMap;
-    
-    NSMutableDictionary *_userMap;
-    
-    NSMutableArray *_userIdentifiers;
-    NSMutableArray *_userTokens;
-    
-    NSArray *_tokenRowActions;
-    NSArray *_rtRowActions;
-    NSArray *_environmentRowActions;
 }
 
 - (id)init
@@ -81,80 +84,107 @@
     [self setEdgesForExtendedLayout:UIRectEdgeNone];
     [self setExtendedLayoutIncludesOpaqueBars:NO];
     [self setAutomaticallyAdjustsScrollViewInsets:NO];
+
+    self.legacyAccessor = [[MSIDLegacyTokenCacheAccessor alloc] initWithDataSource:MSIDKeychainTokenCache.defaultKeychainCache otherCacheAccessors:nil];
+    self.defaultAccessor = [[MSIDDefaultTokenCacheAccessor alloc] initWithDataSource:MSIDKeychainTokenCache.defaultKeychainCache otherCacheAccessors:@[self.legacyAccessor]];
+    _tokenCache = [[MSIDAccountCredentialCache alloc] initWithDataSource:MSIDKeychainTokenCache.defaultKeychainCache];
     
     return self;
 }
 
-- (void)deleteTokenAtPath:(NSIndexPath*)indexPath
+- (void)deleteAppMetadata:(MSIDAppMetadataCacheItem *)appMetadata
 {
-    MSALTestAppCacheRowItem *rowItem = [self cacheItemForPath:indexPath];
-    
-    MSALKeychainTokenCache *cache = MSALKeychainTokenCache.defaultKeychainCache;
-    if ([rowItem.item isKindOfClass:[MSALAccessTokenCacheItem class]])
+    if (appMetadata)
     {
-        [cache removeAccessTokenItem:(MSALAccessTokenCacheItem *)rowItem.item context:nil error:nil];
+        [_tokenCache removeAppMetadata:appMetadata context:nil error:nil];
+        [self loadCache];
     }
-    else if ([rowItem.item isKindOfClass:[MSALRefreshTokenCacheItem class]])
-    {
-        [cache removeRefreshTokenItem:(MSALRefreshTokenCacheItem *)rowItem.item context:nil error:nil];
-    }
-    
-    [self loadCache];
 }
 
-- (void)expireTokenAtPath:(NSIndexPath*)indexPath
+- (void)deleteToken:(MSIDBaseToken *)token
 {
-    MSALTestAppCacheRowItem *rowItem = [self cacheItemForPath:indexPath];
-    if (![rowItem.item isKindOfClass:[MSALAccessTokenCacheItem class]])
+    if (token)
     {
-        return;
+        switch (token.credentialType)
+        {
+            case MSIDRefreshTokenType:
+            {
+                if ([token isKindOfClass:[MSIDLegacyRefreshToken class]])
+                {
+                    [self.legacyAccessor validateAndRemoveRefreshToken:(MSIDLegacyRefreshToken *)token
+                                                               context:nil
+                                                                 error:nil];
+                }
+                else
+                {
+                    [self.defaultAccessor validateAndRemoveRefreshToken:(MSIDRefreshToken *)token
+                                                                context:nil
+                                                                  error:nil];
+                }
+                break;
+            }
+            case MSIDAccessTokenType:
+            {
+                if ([token isKindOfClass:[MSIDLegacyAccessToken class]])
+                {
+                    [self.legacyAccessor removeAccessToken:(MSIDLegacyAccessToken *)token context:nil error:nil];
+                }
+                else
+                {
+                    [self.defaultAccessor removeToken:token context:nil error:nil];
+                }
+
+                break;
+            }
+            default:
+                [self.defaultAccessor removeToken:token context:nil error:nil];
+                break;
+        }
+        
+        [self loadCache];
     }
-    
-    MSALAccessTokenCacheItem *item = (MSALAccessTokenCacheItem *)rowItem.item;
-    item.expiresOnString = [NSString stringWithFormat:@"%qu", (uint64_t)[[NSDate dateWithTimeIntervalSinceNow:-1.0] timeIntervalSince1970]];
-    
-    MSALKeychainTokenCache *cache = MSALKeychainTokenCache.defaultKeychainCache;
-    [cache addOrUpdateAccessTokenItem:item context:nil error:nil];
-    
-    [self loadCache];
 }
 
-- (void)deleteAllAtPath:(NSIndexPath *)indexPath
+- (void)expireAccessToken:(MSIDAccessToken *)accessToken
 {
-    MSALTestAppCacheRowItem *rowItem = [self cacheItemForPath:indexPath];
-    if (!rowItem.environment)
+    if (accessToken)
     {
-        NSLog(@"Trying to delete all from a non-client-id item?");
-        return;
+        accessToken.expiresOn = [NSDate dateWithTimeIntervalSinceNow:-1.0];
+        [_tokenCache saveCredential:accessToken.tokenCacheItem context:nil error:nil];
+        [self loadCache];
     }
-    
-    NSString *userId = [_userIdentifiers objectAtIndex:indexPath.section];
-    
-    // Delete all tokens
-    MSALKeychainTokenCache *cache = MSALKeychainTokenCache.defaultKeychainCache;
-    [cache removeAllTokensForUserIdentifier:userId environment:rowItem.title clientId:TEST_APP_CLIENT_ID context:nil error:nil];
-    
-    [_userMap removeObjectForKey:userId];
-    [_userTokens removeObjectAtIndex:indexPath.section];
-    
-    [self loadCache];
 }
 
-- (void)invalidateTokenAtPath:(NSIndexPath*)indexPath
+- (void)deleteAllEntriesForAccount:(MSIDAccount *)account
 {
-    MSALTestAppCacheRowItem *rowItem = [self cacheItemForPath:indexPath];
-    if (![rowItem.item isKindOfClass:[MSALRefreshTokenCacheItem class]])
+    if (account)
     {
-        return;
+        [self.defaultAccessor clearCacheForAccount:account.accountIdentifier
+                                         authority:nil
+                                          clientId:nil
+                                          familyId:nil
+                                           context:nil
+                                             error:nil];
+
+        [self.legacyAccessor clearCacheForAccount:account.accountIdentifier
+                                         authority:nil
+                                          clientId:nil
+                                          familyId:nil
+                                           context:nil
+                                             error:nil];
+
+        [self loadCache];
     }
-    
-    MSALRefreshTokenCacheItem *item = (MSALRefreshTokenCacheItem *)rowItem.item;
-    item.refreshToken = BAD_REFRESH_TOKEN;
-    
-    MSALKeychainTokenCache *cache = MSALKeychainTokenCache.defaultKeychainCache;
-    [cache addOrUpdateRefreshTokenItem:item context:nil error:nil];
-    
-    [self loadCache];
+}
+
+- (void)invalidateRefreshToken:(MSIDRefreshToken *)refreshToken
+{
+    if (refreshToken)
+    {
+        refreshToken.refreshToken = BAD_REFRESH_TOKEN;
+        [_tokenCache saveCredential:refreshToken.tokenCacheItem context:nil error:nil];
+        [self loadCache];
+    }
 }
 
 - (void)viewDidLoad
@@ -178,87 +208,15 @@
     [refreshControl addTarget:self action:@selector(loadCache) forControlEvents:UIControlEventValueChanged];
     self.refreshControl = refreshControl;
     
-    UITableViewRowAction* deleteTokenAction =
-    [UITableViewRowAction rowActionWithStyle:UITableViewRowActionStyleDestructive
-                                       title:@"Delete"
-                                     handler:^(UITableViewRowAction * _Nonnull action, NSIndexPath * _Nonnull indexPath)
-    {
-        (void)action;
-        [self deleteTokenAtPath:indexPath];
-    }];
-    
-    UITableViewRowAction* invalidateAction =
-    [UITableViewRowAction rowActionWithStyle:UITableViewRowActionStyleNormal
-                                       title:@"Invalidate"
-                                     handler:^(UITableViewRowAction * _Nonnull action, NSIndexPath * _Nonnull indexPath)
-     {
-         (void)action;
-         [self invalidateTokenAtPath:indexPath];
-     }];
-    [invalidateAction setBackgroundColor:[UIColor orangeColor]];
-    
-    UITableViewRowAction* expireTokenAction =
-    [UITableViewRowAction rowActionWithStyle:UITableViewRowActionStyleNormal
-                                       title:@"Expire"
-                                     handler:^(UITableViewRowAction * _Nonnull action, NSIndexPath * _Nonnull indexPath)
-    {
-        (void)action;
-        [self expireTokenAtPath:indexPath];
-    }];
-    [expireTokenAction setBackgroundColor:[UIColor orangeColor]];
-    
-    
-    UITableViewRowAction* deleteAllAction =
-    [UITableViewRowAction rowActionWithStyle:UITableViewRowActionStyleDestructive
-                                       title:@"Delete All"
-                                     handler:^(UITableViewRowAction * _Nonnull action, NSIndexPath * _Nonnull indexPath)
-    {
-        (void)action;
-        [self deleteAllAtPath:indexPath];
-    }];
-    
-    _tokenRowActions = @[ deleteTokenAction, expireTokenAction ];
-    _rtRowActions = @[ deleteTokenAction, invalidateAction ];
-    _environmentRowActions = @[ deleteAllAction ];
-    
     [[NSNotificationCenter defaultCenter] addObserverForName:MSALTestAppCacheChangeNotification
                                                       object:nil
                                                        queue:nil
-                                                  usingBlock:^(NSNotification * _Nonnull note)
+                                                  usingBlock:^(__unused NSNotification * _Nonnull note)
     {
-        (void)note;
         dispatch_async(dispatch_get_main_queue(), ^{
             [self loadCache];
         });
     }];
-}
-
-- (void)didReceiveMemoryWarning {
-    [super didReceiveMemoryWarning];
-    // Dispose of any resources that can be recreated.
-}
-
-- (void)addTokenToCacheMap:(MSALBaseTokenCacheItem *)item
-{
-    NSString *userId = item.user.userIdentifier;
-    
-    NSMutableDictionary *userTokens = _cacheMap[userId];
-    if (!userTokens)
-    {
-        userTokens = [NSMutableDictionary new];
-        [_cacheMap setObject:userTokens forKey:userId];
-    }
-    
-    NSString *environment = item.user.environment;
-    
-    NSMutableArray *environmentTokens = userTokens[environment];
-    if (!environmentTokens)
-    {
-        environmentTokens = [NSMutableArray new];
-        userTokens[environment] = environmentTokens;
-    }
-    
-    [environmentTokens addObject:item];
 }
 
 - (void)loadCache
@@ -266,180 +224,265 @@
     [self.refreshControl beginRefreshing];
     
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-        
-        // First create a map heirarchy of userId -> clientId -> tokens to sort
-        // through all the itmes we get back
-        MSALKeychainTokenCache *cache = MSALKeychainTokenCache.defaultKeychainCache;
-        _cacheMap = [NSMutableDictionary new];
-        
-        NSArray *allAccessTokenItems = [cache getAccessTokenItemsWithKey:nil context:nil error:nil];
-        for (MSALBaseTokenCacheItem* item in allAccessTokenItems)
-        {
-            [self addTokenToCacheMap:item];
-        }
-        
-        NSArray *allRefreshTokenItems = [cache allRefreshTokens:nil context:nil error:nil];
-        for (MSALBaseTokenCacheItem* item in allRefreshTokenItems)
-        {
-            [self addTokenToCacheMap:item];
-        }
-        
-        // Now that we have all the items sorted out in the dictionaries flatten it
-        // out to a single list.
-        _userIdentifiers = [[NSMutableArray alloc] initWithCapacity:_cacheMap.count];
-        _userTokens = [[NSMutableArray alloc] initWithCapacity:_cacheMap.count];
-        _userMap = [NSMutableDictionary new];
-        
-        for (NSString *userId in _cacheMap)
-        {
-            NSUInteger count = 0;
-            [_userIdentifiers addObject:userId];
-            
-            NSDictionary *userTokens = _cacheMap[userId];
-            for (NSString* key in userTokens)
-            {
-                count += [[userTokens objectForKey:key] count]  + 1; // Add one for the "client ID" item
-            }
-            
-            NSMutableArray* arrUserTokens = [[NSMutableArray alloc] initWithCapacity:count];
 
-            for (NSString *environment in userTokens)
-            {
-                // Add environment row
-                MSALTestAppCacheRowItem *environmentItem = [MSALTestAppCacheRowItem new];
-                environmentItem.title = environment;
-                environmentItem.environment = YES;
-                
-                [arrUserTokens addObject:environmentItem];
-                
-                NSArray *environmentTokens = userTokens[environment];
-                for (MSALBaseTokenCacheItem *item in environmentTokens)
-                {
-                    
-                    MSALTestAppCacheRowItem* tokenItem = [MSALTestAppCacheRowItem new];
-                    if ([item isKindOfClass:[MSALAccessTokenCacheItem class]])
-                    {
-                        tokenItem.title = ((MSALAccessTokenCacheItem *)item).scope.msalToString;
-                    }
-                    else if ([item isKindOfClass:[MSALRefreshTokenCacheItem class]])
-                    {
-                        tokenItem.title = @"RT";
-                    }
-                    tokenItem.item = item;
-                    [arrUserTokens addObject:tokenItem];
-                    
-                    _userMap[userId] = item.user.displayableId;
-                }
-            }
-            
-            [_userTokens addObject:arrUserTokens];
-            
+        [self setAccounts:[self.defaultAccessor accountsWithAuthority:nil
+                                                             clientId:nil
+                                                             familyId:nil
+                                                    accountIdentifier:nil
+                                                              context:nil
+                                                                error:nil]];
+
+        [self setAppMetadataEntries:[self.defaultAccessor getAppMetadataEntries:nil context:nil error:nil]];
+        
+        _cacheSections = [NSMutableDictionary dictionary];
+        if ([[self appMetadataEntries] count])
+        {
+            [_cacheSections setObject:[self appMetadataEntries] forKey:APP_METADATA];
         }
-        _cacheMap = nil;
+        
+        for (MSIDAccount *account in [self accounts])
+        {
+            _cacheSections[[self rowIdentifier:account.accountIdentifier]] = [NSMutableArray array];
+            [_cacheSections[[self rowIdentifier:account.accountIdentifier]] addObject:account];
+        }
+
+        NSMutableArray *allTokens = [[self.defaultAccessor allTokensWithContext:nil error:nil] mutableCopy];
+        NSArray *legacyTokens = [self.legacyAccessor allTokensWithContext:nil error:nil];
+        [allTokens addObjectsFromArray:legacyTokens];
+        
+        for (MSIDBaseToken *token in allTokens)
+        {
+            NSMutableArray *tokens = _cacheSections[[self rowIdentifier:token.accountIdentifier]];
+            [tokens addObject:token];
+        }
+        
+        _cacheSectionTitles = [_cacheSections allKeys];
         
         dispatch_async(dispatch_get_main_queue(), ^{
             [_cacheTableView reloadData];
             [self.refreshControl endRefreshing];
-            
-            if (!_userMap[MSALTestAppSettings.settings.currentUser.userIdentifier])
-            {
-                MSALTestAppSettings.settings.currentUser = nil;
-            }
         });
     });
 }
 
-- (MSALTestAppCacheRowItem*)cacheItemForPath:(NSIndexPath*)indexPath
+- (NSString *)rowIdentifier:(MSIDAccountIdentifier *)accountIdentifier
 {
-    return [[_userTokens objectAtIndex:indexPath.section] objectAtIndex:indexPath.row];
+    return accountIdentifier.homeAccountId ? accountIdentifier.homeAccountId : accountIdentifier.displayableId;
 }
 
-- (NSInteger)numberOfSectionsInTableView:(UITableView *)tableView
-{
-    (void)tableView;
-    return [_userIdentifiers count];
-}
+#pragma mark - UITableViewDataSource
 
-- (nullable NSString *)tableView:(UITableView *)tableView titleForHeaderInSection:(NSInteger)section
+- (NSInteger)numberOfSectionsInTableView:(__unused UITableView *)tableView
 {
-    (void)tableView;
-    return _userMap[[_userIdentifiers objectAtIndex:section]];
+    return [_cacheSectionTitles count];
 }
 
 - (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section
 {
-    (void)tableView;
-    return [[_userTokens objectAtIndex:section] count];
+    NSString *sectionTitle = [_cacheSectionTitles objectAtIndex:section];
+    NSArray *sectionObjects = [_cacheSections objectForKey:sectionTitle];
+    return [sectionObjects count];
+}
+
+- (UIView *)tableView:(UITableView *)tableView viewForHeaderInSection:(NSInteger)section
+{
+    UILabel *label = [[UILabel alloc] init];
+    NSArray *sectionObjects = [_cacheSections objectForKey:[_cacheSectionTitles objectAtIndex:section]];
+    if ([sectionObjects count])
+    {
+        id cacheEntry = [sectionObjects objectAtIndex:0];
+        if ([cacheEntry isKindOfClass:[MSIDAccount class]])
+        {
+            MSIDAccount *account = (MSIDAccount *)cacheEntry;
+            label.text = account.username;
+        }
+        else
+        {
+            label.text = [_cacheSectionTitles objectAtIndex:section];
+        }
+    }
+    
+    label.textAlignment = NSTextAlignmentCenter;
+    label.backgroundColor = [UIColor colorWithRed:0.27 green:0.43 blue:0.7 alpha:1.0];
+    return label;
+}
+
+- (CGFloat)tableView:(UITableView *)tableView heightForHeaderInSection:(NSInteger)section
+{
+    return 30;
 }
 
 // Row display. Implementers should *always* try to reuse cells by setting each cell's reuseIdentifier and querying for available reusable cells with dequeueReusableCellWithIdentifier:
 // Cell gets various attributes set automatically based on table (separators) and data source (accessory views, editing controls)
-
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath
 {
     UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:@"cacheCell"];
     
     if (!cell)
     {
-        cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:@"cacheCell"];
+        cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleSubtitle reuseIdentifier:@"cacheCell"];
     }
-    
-    MSALTestAppCacheRowItem* cacheItem = [self cacheItemForPath:indexPath];
-    
-    if (cacheItem.environment)
-    {
-        [cell setBackgroundColor:[UIColor colorWithRed:0 green:0 blue:((CGFloat)0x80/(CGFloat)0xFF) alpha:1.0]];
-        [[cell textLabel] setTextColor:[UIColor whiteColor]];
-        [[cell textLabel] setFont:[UIFont preferredFontForTextStyle:UIFontTextStyleBody]];
-    }
-    else
-    {
-        [cell setBackgroundColor:[UIColor whiteColor]];
 
-        if ([cacheItem.item isKindOfClass:[MSALRefreshTokenCacheItem class]] &&
-             [((MSALRefreshTokenCacheItem *)cacheItem.item).refreshToken isEqualToString:BAD_REFRESH_TOKEN])
-        {
-            [[cell textLabel] setTextColor:[UIColor orangeColor]];
-        }
-        else if ([cacheItem.item isKindOfClass:[MSALAccessTokenCacheItem class]] &&
-                 ((MSALAccessTokenCacheItem *)cacheItem.item).isExpired)
-        {
-            [[cell textLabel] setTextColor:[UIColor orangeColor]];
-        }
-        else
-        {
-            [[cell textLabel] setTextColor:[UIColor blackColor]];
-        }
-        [[cell textLabel] setFont:[UIFont preferredFontForTextStyle:UIFontTextStyleBody]];
-    }
+    cell.backgroundColor = [UIColor whiteColor];
+    cell.textLabel.font = [UIFont preferredFontForTextStyle:UIFontTextStyleBody];
+    cell.textLabel.textColor = [UIColor darkTextColor];
+    NSString *sectionTitle = [_cacheSectionTitles objectAtIndex:indexPath.section];
+    NSArray *sectionObjects = [_cacheSections objectForKey:sectionTitle];
+    id cacheEntry = [sectionObjects objectAtIndex:indexPath.row];
     
-    [[cell textLabel] setText:cacheItem.title];
+    if ([cacheEntry isKindOfClass:[MSIDAppMetadataCacheItem class]])
+    {
+        MSIDAppMetadataCacheItem *appMetadata = [self appMetadataEntries][indexPath.row];
+        cell.textLabel.text = [NSString stringWithFormat:@"[ClientId] %@", appMetadata.clientId];
+        cell.detailTextLabel.text = [NSString stringWithFormat:@"[Environment] %@, FamilyId %@", appMetadata.environment, appMetadata.familyId];
+
+    }
+    else if ([cacheEntry isKindOfClass:[MSIDBaseToken class]])
+    {
+        MSIDBaseToken *token = (MSIDBaseToken *)cacheEntry;
+        switch (token.credentialType) {
+            case MSIDRefreshTokenType:
+            {
+                MSIDRefreshToken *refreshToken = (MSIDRefreshToken *) token;
+                
+                if ([token isKindOfClass:[MSIDLegacyRefreshToken class]])
+                {
+                    cell.textLabel.text = [NSString stringWithFormat:@"[Legacy RT] %@, FRT %@", token.authority.url.msidTenant, refreshToken.clientId];
+                    cell.detailTextLabel.text = [NSString stringWithFormat:@"[ClientId] %@", refreshToken.clientId];
+                }
+                else
+                {
+                    cell.textLabel.text = [NSString stringWithFormat:@"[RT] %@, FRT %@", refreshToken.authority.url.msidTenant, refreshToken.familyId];
+                    cell.detailTextLabel.text = [NSString stringWithFormat:@"[ClientId] %@", refreshToken.clientId];
+                }
+                
+                if ([refreshToken.refreshToken isEqualToString:BAD_REFRESH_TOKEN])
+                {
+                    cell.textLabel.textColor = [UIColor orangeColor];
+                    cell.detailTextLabel.text = [NSString stringWithFormat:@"[ClientId] %@", refreshToken.clientId];
+                }
+                break;
+            }
+            case MSIDAccessTokenType:
+            {
+                MSIDAccessToken *accessToken = (MSIDAccessToken *) token;
+                cell.textLabel.text = [NSString stringWithFormat:@"[AT] %@/%@", [accessToken.scopes msidToString], accessToken.authority.url.msidTenant];
+                cell.detailTextLabel.text = [NSString stringWithFormat:@"[ClientId] %@", accessToken.clientId];
+                if (accessToken.isExpired)
+                {
+                    cell.textLabel.textColor = [UIColor redColor];
+                }
+                break;
+            }
+            case MSIDIDTokenType:
+            {
+                cell.textLabel.text = [NSString stringWithFormat:@"[ID] %@", token.authority.url.msidTenant];
+                cell.detailTextLabel.text = [NSString stringWithFormat:@"[ClientId] %@", token.clientId];
+                break;
+            }
+            case MSIDLegacySingleResourceTokenType:
+            {
+                cell.textLabel.text = @"Legacy single resource token";
+                cell.detailTextLabel.text = [NSString stringWithFormat:@"[ClientId] %@", token.clientId];
+                break;
+            }
+            default:
+                break;
+        }
+    }
+    else if([cacheEntry isKindOfClass:[MSIDAccount class]])
+    {
+        MSIDAccount *account = (MSIDAccount *)cacheEntry;
+        cell.textLabel.text = [NSString stringWithFormat:@"[AC] %@", account.authority.environment];
+        cell.detailTextLabel.text = [NSString stringWithFormat:@"[Account Identifier] %@", [self rowIdentifier:account.accountIdentifier]];
+    }
     
     return cell;
 }
 
+#pragma mark - UITableViewDelegate
+
 - (nullable NSArray<UITableViewRowAction *> *)tableView:(UITableView *)tableView
                            editActionsForRowAtIndexPath:(NSIndexPath *)indexPath
 {
-    (void)tableView;
-    
-    MSALTestAppCacheRowItem* rowItem = [self cacheItemForPath:indexPath];
-    (void)rowItem;
-    
-    if (rowItem.environment)
+    NSString *sectionTitle = [_cacheSectionTitles objectAtIndex:indexPath.section];
+    NSArray *sectionObjects = [_cacheSections objectForKey:sectionTitle];
+    id cacheEntry = [sectionObjects objectAtIndex:indexPath.row];
+    if ([cacheEntry isKindOfClass:[MSIDAppMetadataCacheItem class]])
     {
-        return _environmentRowActions;
+        MSIDAppMetadataCacheItem *appMetadata = (MSIDAppMetadataCacheItem *)cacheEntry;
+        UITableViewRowAction *deleteTokenAction =
+        [UITableViewRowAction rowActionWithStyle:UITableViewRowActionStyleDestructive
+                                           title:@"Delete"
+                                         handler:^(__unused UITableViewRowAction * _Nonnull action, NSIndexPath * _Nonnull indexPath)
+         {
+             [self deleteAppMetadata:appMetadata];
+         }];
+        
+        return @[deleteTokenAction];
     }
-    else
+    else if ([cacheEntry isKindOfClass:[MSIDBaseToken class]])
     {
-        if ([rowItem.item isKindOfClass:[MSALAccessTokenCacheItem class]])
+        MSIDBaseToken *token = (MSIDBaseToken *)cacheEntry;
+        UITableViewRowAction *deleteTokenAction =
+        [UITableViewRowAction rowActionWithStyle:UITableViewRowActionStyleDestructive
+                                           title:@"Delete"
+                                         handler:^(__unused UITableViewRowAction * _Nonnull action, NSIndexPath * _Nonnull indexPath)
+         {
+             [self deleteToken:token];
+         }];
+        
+        UITableViewRowAction* invalidateAction =
+        [UITableViewRowAction rowActionWithStyle:UITableViewRowActionStyleNormal
+                                           title:@"Invalidate"
+                                         handler:^(__unused UITableViewRowAction * _Nonnull action, NSIndexPath * _Nonnull indexPath)
+         {
+             [self invalidateRefreshToken:(MSIDRefreshToken *)token];
+         }];
+        
+        [invalidateAction setBackgroundColor:[UIColor orangeColor]];
+        
+        UITableViewRowAction* expireTokenAction =
+        [UITableViewRowAction rowActionWithStyle:UITableViewRowActionStyleNormal
+                                           title:@"Expire"
+                                         handler:^(__unused UITableViewRowAction * _Nonnull action, NSIndexPath * _Nonnull indexPath)
+         {
+             [self expireAccessToken:(MSIDAccessToken *)token];
+         }];
+        [expireTokenAction setBackgroundColor:[UIColor orangeColor]];
+        
+        switch (token.credentialType)
         {
-            return _tokenRowActions;
+            case MSIDRefreshTokenType:
+            {
+                if ([token isKindOfClass:[MSIDLegacyRefreshToken class]])
+                {
+                    return @[deleteTokenAction];
+                }
+                
+                return @[deleteTokenAction, invalidateAction];
+            }
+            case MSIDAccessTokenType:
+            {
+                return @[deleteTokenAction, expireTokenAction];
+            }
+            case MSIDIDTokenType:
+            {
+                return @[deleteTokenAction];
+            }
+            default:
+                return nil;
         }
-        else if ([rowItem.item isKindOfClass:[MSALRefreshTokenCacheItem class]])
-        {
-            return _rtRowActions;
-        }
+    }
+    else if ([cacheEntry isKindOfClass:[MSIDAccount class]])
+    {
+        MSIDAccount *account = (MSIDAccount *)cacheEntry;
+        return @[[UITableViewRowAction rowActionWithStyle:UITableViewRowActionStyleDestructive
+                                                    title:@"Delete All"
+                                                  handler:^(__unused UITableViewRowAction * _Nonnull action, NSIndexPath * _Nonnull indexPath)
+                  {
+                      [self deleteAllEntriesForAccount:account];
+                  }]];
     }
     
     return nil;
@@ -452,6 +495,5 @@
     (void)editingStyle;
     (void)indexPath;
 }
-
 
 @end

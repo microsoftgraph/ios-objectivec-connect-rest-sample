@@ -28,39 +28,43 @@
 #import "MSALTestCase.h"
 
 #import "MSALAuthority.h"
-#import "MSALWebUI.h"
 
 #import "MSALTestBundle.h"
-#import "MSALTestCacheDataUtil.h"
-#import "MSALTestLogger.h"
-#import "MSALTestSwizzle.h"
+#import "MSIDTestSwizzle.h"
+
+#import "MSIDTestURLSession.h"
 
 #if TARGET_OS_IPHONE
 #import "SFSafariViewController+TestOverrides.h"
 #import "MSALFakeViewController.h"
 #endif
 
+#import "MSIDAuthority.h"
+#import "MSIDAadAuthorityCache.h"
+
 @implementation MSALTestCase
 
 - (void)setUp
 {
     [super setUp];
-    [[MSALTestLogger sharedLogger] reset];
     [MSALTestBundle reset];
-    [MSALTestSwizzle reset];
+    [MSIDTestSwizzle reset];
     [MSALAuthority initialize];
-    [[MSALTestCacheDataUtil defaultUtil] reset];
+    
+    [MSIDTestURLSession clearResponses];
     
 #if TARGET_OS_IPHONE
     [SFSafariViewController reset];
     [MSALFakeViewController reset];
 #endif
+    
+    [MSIDAuthority.openIdConfigurationCache removeAllObjects];
+    [[MSIDAadAuthorityCache sharedInstance] removeAllObjects];
 }
 
 - (void)tearDown
 {
     // Put teardown code here. This method is called after the invocation of each test method in the class.
-    XCTAssertFalse([MSALWebUI cancelCurrentWebAuthSession]);
     [super tearDown];
 }
 

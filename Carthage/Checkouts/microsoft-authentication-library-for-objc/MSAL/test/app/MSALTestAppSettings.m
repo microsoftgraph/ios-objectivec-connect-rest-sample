@@ -22,17 +22,47 @@
 // THE SOFTWARE.
 
 #import "MSALTestAppSettings.h"
+#import "MSIDAuthority.h"
+#import "MSALAccountId.h"
+#import "MSALAuthorityFactory.h"
+#import "MSIDAuthority.h"
 #import "MSALAuthority.h"
+#import "MSALAuthority_Internal.h"
+#import "MSIDAADNetworkConfiguration.h"
+#import "MSALPublicClientApplication.h"
+#import "MSALAccount.h"
+
+#if __has_include("MSALAdditionalTestAppSettings.h")
+#include "MSALAdditionalTestAppSettings.h"
+#else
+// If you put a header file at ~/aadoverrides/ADAdditionalTestAppSettings.h with
+// function named _addtionalProfiles() that returns an NSDictionary that will
+// be folded into the profiles list without you having to constantly alter your
+// github enlistment!
+static NSDictionary* _additionalProfiles()
+{
+    return @{
+             @"MSAL-TestApp" : @{@"clientId" : @"b6c69a37-df96-4db0-9088-2ab96e1d8215",
+                            @"redirectUri" :@"msauth.com.microsoft.MSALTestApp://auth"},
+             };
+}
+#endif
 
 #define MSAL_APP_SETTINGS_KEY @"MSALSettings"
 
-#define MSAL_APP_SCOPE_USER_READ        @"User.Read"
+#define MSAL_APP_SCOPE_USER_READ @"User.Read"
 
 NSString* MSALTestAppCacheChangeNotification = @"MSALTestAppCacheChangeNotification";
 
 static NSArray<NSString *> *s_authorities = nil;
 
+static NSArray<NSString *> *s_b2cAuthorities = nil;
+
 static NSArray<NSString *> *s_scopes_available = nil;
+
+static NSArray<NSString *> *s_authorityTypes = nil;
+
+static NSDictionary *s_profiles = nil;
 
 @interface MSALTestAppSettings()
 {
@@ -46,17 +76,30 @@ static NSArray<NSString *> *s_scopes_available = nil;
 + (void)initialize
 {
     NSMutableArray<NSString *> *authorities = [NSMutableArray new];
+    NSSet<NSString *> *trustedHosts = [MSIDAADNetworkConfiguration.defaultConfiguration trustedHosts];
     
-    NSSet<NSString *> *trustedHosts = [MSALAuthority trustedHosts];
     for (NSString *host in trustedHosts)
     {
-        [authorities addObject:[NSString stringWithFormat:@"https://%@/common", host]];
+        __auto_type tenants = @[@"common", @"organizations", @"consumers"];
+        
+        for (NSString *tenant in tenants)
+        {
+            __auto_type authorityString = [NSString stringWithFormat:@"https://%@/%@", host, tenant];
+            [authorities addObject:authorityString];
+        }
     }
     
     s_authorities = authorities;
     
-    s_scopes_available = @[MSAL_APP_SCOPE_USER_READ, @"Tasks.Read"];
-
+    s_scopes_available = @[MSAL_APP_SCOPE_USER_READ, @"Tasks.Read", @"https://graph.microsoft.com/.default",@"https://msidlabb2c.onmicrosoft.com/msidlabb2capi/read", @"TASKS.read"];
+    
+    __auto_type signinPolicyAuthority = @"https://login.microsoftonline.com/tfp/msidlabb2c.onmicrosoft.com/B2C_1_SignInPolicy";
+    __auto_type signupPolicyAuthority = @"https://login.microsoftonline.com/tfp/msidlabb2c.onmicrosoft.com/B2C_1_SignUpPolicy";
+    __auto_type profilePolicyAuthority = @"https://login.microsoftonline.com/tfp/msidlabb2c.onmicrosoft.com/B2C_1_EditProfilePolicy";
+    
+    s_b2cAuthorities = @[signinPolicyAuthority, signupPolicyAuthority, profilePolicyAuthority];
+    s_authorityTypes = @[@"AAD",@"B2C"];
+    s_profiles = _additionalProfiles();
 }
 
 + (MSALTestAppSettings*)settings
@@ -66,6 +109,7 @@ static NSArray<NSString *> *s_scopes_available = nil;
     
     dispatch_once(&s_settingsOnce,^{
         s_settings = [MSALTestAppSettings new];
+        s_settings->_profile = [[s_profiles allValues] objectAtIndex:0];
         [s_settings readFromDefaults];
         s_settings->_scopes = [NSMutableSet new];
     });
@@ -73,46 +117,53 @@ static NSArray<NSString *> *s_scopes_available = nil;
     return s_settings;
 }
 
-+ (NSArray<NSString *> *)authorities
++ (NSDictionary *)profiles
+{
+    return s_profiles;
+}
+
++ (NSArray<NSString *> *)aadAuthorities
 {
     return s_authorities;
 }
 
-- (MSALUser *)userForUserIdentifier:(NSString *)userIdentifier
++ (NSArray<NSString *> *)b2cAuthorities
 {
-    if (!userIdentifier)
+    return s_b2cAuthorities;
+}
+
++ (NSArray<NSString *> *)authorityTypes
+{
+    return s_authorityTypes;
+}
+
+- (MSALAccount *)accountForAccountHomeIdentifier:(NSString *)accountIdentifier
+{
+    if (!accountIdentifier)
     {
         return nil;
     }
+    
+    NSDictionary *currentProfile = _profile;
+    NSString *clientId = [currentProfile objectForKey:MSAL_APP_CLIENT_ID];
+    NSString *redirectUri = [currentProfile objectForKey:MSAL_APP_REDIRECT_URI];
     
     NSError *error = nil;
-    MSALPublicClientApplication *application =
-    [[MSALPublicClientApplication alloc] initWithClientId:TEST_APP_CLIENT_ID
-                                                authority:_authority
-                                                    error:&error];
+
+    MSALPublicClientApplicationConfig *pcaConfig = [[MSALPublicClientApplicationConfig alloc] initWithClientId:clientId
+                                                                                                   redirectUri:redirectUri
+                                                                                                     authority:_authority];
+    
+    MSALPublicClientApplication *application = [[MSALPublicClientApplication alloc] initWithConfiguration:pcaConfig error:&error];
+
     if (application == nil)
     {
-        LOG_ERROR(nil, @"failed to create application to get user: %@", error);
+        MSID_LOG_ERROR(nil, @"failed to create application to get user: %@", error);
         return nil;
     }
     
-    NSArray<MSALUser *> *users = [application users:nil];
-    if (!users)
-    {
-        LOG_ERROR(nil, @"no users came back from the application");
-        return nil;
-    }
-    
-    for (MSALUser *user in users)
-    {
-        if ([userIdentifier isEqualToString:user.userIdentifier])
-        {
-            return user;
-        }
-    }
-    
-    LOG_WARN(nil, @"failed to find user identifier \"%@\" among users.", userIdentifier);
-    return nil;
+    MSALAccount *account = [application accountForHomeAccountId:accountIdentifier error:&error];
+    return account;
 }
 
 - (void)readFromDefaults
@@ -123,12 +174,24 @@ static NSArray<NSString *> *s_scopes_available = nil;
         return;
     }
     
-    _authority = [settings objectForKey:@"authority"];
+    NSDictionary *profile = [settings objectForKey:MSAL_APP_PROFILE];
+    if (profile)
+    {
+        _profile = profile;
+    }
+    
+    NSString *authorityString = [settings objectForKey:@"authority"];
+    if (authorityString)
+    {
+        NSURL *authorityUrl = [[NSURL alloc] initWithString:authorityString];
+        __auto_type authority = [MSALAuthorityFactory authorityFromUrl:authorityUrl context:nil error:nil];
+        _authority = authority;
+    }
+    
     _loginHint = [settings objectForKey:@"loginHint"];
     NSNumber* validate = [settings objectForKey:@"validateAuthority"];
     _validateAuthority = validate ? [validate boolValue] : YES;
-    _currentUser = [self userForUserIdentifier:[settings objectForKey:@"currentUser"]];
-    
+    _currentAccount = [self accountForAccountHomeIdentifier:[settings objectForKey:@"currentHomeAccountId"]];
 }
 
 - (void)setValue:(id)value
@@ -146,9 +209,9 @@ static NSArray<NSString *> *s_scopes_available = nil;
                                               forKey:MSAL_APP_SETTINGS_KEY];
 }
 
-- (void)setAuthority:(NSString *)authority
+- (void)setAuthority:(MSALAuthority *)authority
 {
-    [self setValue:authority forKey:@"authority"];
+    [self setValue:authority.msidAuthority.url.absoluteString forKey:@"authority"];
     _authority = authority;
 }
 
@@ -165,11 +228,10 @@ static NSArray<NSString *> *s_scopes_available = nil;
     _validateAuthority = validateAuthority;
 }
 
-- (void)setCurrentUser:(MSALUser *)currentUser
+- (void)setCurrentAccount:(MSALAccount *)currentAccount
 {
-    [self setValue:currentUser.userIdentifier
-            forKey:@"currentUser"];
-    _currentUser = currentUser;
+    [self setValue:currentAccount.homeAccountId.identifier forKey:@"currentHomeAccountId"];
+    _currentAccount = currentAccount;
 }
 
 + (NSArray<NSString *> *)availableScopes
@@ -204,5 +266,10 @@ static NSArray<NSString *> *s_scopes_available = nil;
     return YES;
 }
 
+- (void)setProfile:(id)profile
+{
+    [self setValue:profile forKey:MSAL_APP_PROFILE];
+    _profile = profile;
+}
 
 @end

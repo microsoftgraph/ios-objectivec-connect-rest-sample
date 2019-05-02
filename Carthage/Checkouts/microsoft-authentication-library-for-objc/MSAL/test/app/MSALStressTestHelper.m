@@ -28,9 +28,16 @@
 #import "MSALStressTestHelper.h"
 #import "MSALTestAppTelemetryViewController.h"
 #import "MSALTestAppSettings.h"
-#import "NSURL+MSALExtensions.h"
-#import "MSALAuthority.h"
-#import "MSALAccessTokenCacheItem+TestAppUtil.h"
+#import "NSURL+MSIDExtensions.h"
+#import "MSIDDefaultTokenCacheAccessor.h"
+#import "MSIDLegacyTokenCacheAccessor.h"
+#import "MSIDKeychainTokenCache.h"
+#import "MSIDAccessToken.h"
+#import "MSIDAccount.h"
+#import "MSIDAccountCredentialCache.h"
+#import "MSALPublicClientApplication.h"
+#import "MSALResult.h"
+#import "MSALSilentTokenParameters.h"
 
 @implementation MSALStressTestHelper
 
@@ -39,15 +46,15 @@ static BOOL s_runningTest = NO;
 
 #pragma mark - Helpers
 
-+ (void)expireAllTokens
++ (void)expireAllAccessTokens
 {
-    MSALKeychainTokenCache *cache = MSALKeychainTokenCache.defaultKeychainCache;
-    NSArray *tokenCacheItems = [cache getAccessTokenItemsWithKey:nil context:nil error:nil];
-    
-    for (MSALAccessTokenCacheItem *item in tokenCacheItems)
+    MSIDAccountCredentialCache *cache = [[MSIDAccountCredentialCache alloc] initWithDataSource:MSIDKeychainTokenCache.defaultKeychainCache];
+    NSArray<MSIDCredentialCacheItem *> *accessTokens = [cache getAllCredentialsWithType:MSIDAccessTokenType context:nil error:nil];
+
+    for (MSIDCredentialCacheItem *token in accessTokens)
     {
-        item.expiresOnString = [NSString stringWithFormat:@"%qu", (uint64_t)[[NSDate dateWithTimeIntervalSinceNow:-1.0] timeIntervalSince1970]];
-        [cache addOrUpdateAccessTokenItem:item context:nil error:nil];
+        token.expiresOn = [NSDate dateWithTimeIntervalSinceNow:-1.0];
+        [cache saveCredential:token context:nil error:nil];
     }
 }
 
@@ -57,37 +64,45 @@ static BOOL s_runningTest = NO;
                                useMultipleUsers:(BOOL)multipleUsers
                                     application:(MSALPublicClientApplication *)application
 {
-    MSALTestAppSettings *settings = [MSALTestAppSettings settings];
-    NSArray<MSALUser *> *users = [application users:nil];
+    NSArray<MSALAccount *> *accounts = [application allAccounts:nil];
     
+    [self testAcquireTokenSilentWithExpiringTokenImpl:expireToken
+                                     useMultipleUsers:multipleUsers
+                                          application:application
+                                             accounts:accounts];
+}
+
++ (void)testAcquireTokenSilentWithExpiringTokenImpl:(BOOL)expireToken
+                                   useMultipleUsers:(BOOL)multipleUsers
+                                        application:(MSALPublicClientApplication *)application
+                                           accounts:(NSArray<MSALAccount *> *)accounts
+{
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-        
+
         __block dispatch_semaphore_t sem = dispatch_semaphore_create(10);
         __block NSUInteger userIndex = 0;
-        
+
         while (!s_stop)
         {
             dispatch_semaphore_wait(sem, DISPATCH_TIME_FOREVER);
-            
+
             dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-                
-                MSALUser *user = users[userIndex];
-                
+
+                MSALAccount *account = accounts[userIndex];
+
                 if (multipleUsers)
                 {
-                    userIndex = ++userIndex >= [users count] ? 0 : userIndex;
+                    userIndex = ++userIndex >= [accounts count] ? 0 : userIndex;
                 }
                 
-                [application acquireTokenSilentForScopes:[settings.scopes allObjects]
-                                                    user:user
-                                         completionBlock:^(MSALResult *result, NSError *error)
+                __auto_type scopes = [[MSALTestAppSettings settings].scopes allObjects];
+                MSALSilentTokenParameters *parameters = [[MSALSilentTokenParameters alloc] initWithScopes:scopes account:account];
+                
+                [application acquireTokenSilentWithParameters:parameters completionBlock:^(MSALResult *result, __unused NSError *error)
                  {
-                     (void)error;
-                     
-                     if (expireToken
-                         && result.user)
+                     if (expireToken && result.account)
                      {
-                         [self expireAllTokens];
+                         [self expireAllAccessTokens];
                      }
                      
                      dispatch_semaphore_signal(sem);
@@ -109,21 +124,19 @@ static BOOL s_runningTest = NO;
             dispatch_semaphore_wait(sem, DISPATCH_TIME_FOREVER);
             
             dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-                
-                NSArray *users = [application users:nil];
-                
-                if (![users count])
+
+                NSArray<MSALAccount *> *accounts = [application allAccounts:nil];
+                if (![accounts count])
                 {
                     dispatch_semaphore_signal(sem);
                 }
                 else
                 {
-                    [application acquireTokenSilentForScopes:[settings.scopes allObjects]
-                                                        user:users[0]
-                                             completionBlock:^(MSALResult *result, NSError *error)
+                    __auto_type scopes = [settings.scopes allObjects];
+                    MSALSilentTokenParameters *parameters = [[MSALSilentTokenParameters alloc] initWithScopes:scopes account:accounts[0]];
+                    
+                    [application acquireTokenSilentWithParameters:parameters completionBlock:^(MSALResult *result, __unused NSError *error)
                      {
-                         (void)error;
-                         
                          if (result.accessToken)
                          {
                              s_stop = YES;
@@ -135,7 +148,6 @@ static BOOL s_runningTest = NO;
                 }
             });
         }
-        
     });
 }
 

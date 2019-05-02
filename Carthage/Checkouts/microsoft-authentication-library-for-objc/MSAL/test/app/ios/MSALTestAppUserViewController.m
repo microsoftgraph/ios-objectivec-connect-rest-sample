@@ -28,6 +28,9 @@
 #import "MSALTestAppUserViewController.h"
 #import "MSALPublicClientApplication.h"
 #import "MSALTestAppSettings.h"
+#import "MSALAccountId.h"
+#import "MSIDAuthorityFactory.h"
+#import "MSALAccount.h"
 
 @interface MSALTestAppUserViewController ()
 
@@ -35,7 +38,7 @@
 
 @implementation MSALTestAppUserViewController
 {
-    NSArray<MSALUser *> *_users;
+    NSArray<MSALAccount *> *_accounts;
 }
 
 + (instancetype)sharedController
@@ -61,29 +64,36 @@
 
 - (void)refresh
 {
-    _users = nil;
+    _accounts = nil;
     
-    NSError *error = nil;
     MSALTestAppSettings *settings = [MSALTestAppSettings settings];
-    MSALPublicClientApplication *application =
-    [[MSALPublicClientApplication alloc] initWithClientId:TEST_APP_CLIENT_ID
-                                                authority:settings.authority
-                                                    error:&error];
+    NSDictionary *currentProfile = [settings profile];
+    NSString *clientId = [currentProfile objectForKey:MSAL_APP_CLIENT_ID];
+    NSString *redirectUri = [currentProfile objectForKey:MSAL_APP_REDIRECT_URI];
+    MSALAuthority *authority = [settings authority];
+    NSError *error = nil;
+    
+    MSALPublicClientApplicationConfig *pcaConfig = [[MSALPublicClientApplicationConfig alloc] initWithClientId:clientId
+                                                                                                   redirectUri:redirectUri
+                                                                                                     authority:authority];
+
+    MSALPublicClientApplication *application = [[MSALPublicClientApplication alloc] initWithConfiguration:pcaConfig error:&error];
     
     if (!application)
     {
-        LOG_ERROR(nil, @"Failed to create public client application: %@", error);
+        MSID_LOG_ERROR(nil, @"Failed to create public client application: %@", error);
         return;
     }
-    
-    _users = [application users:nil];
-    
-    [super refresh];
+
+    _accounts = [application allAccounts:nil];
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [super refresh];
+    });
 }
 
 - (NSInteger)numberOfRows
 {
-    return _users.count + 1;
+    return _accounts.count + 1;
 }
 
 - (NSString *)labelForRow:(NSInteger)row
@@ -92,7 +102,7 @@
     {
         return @"(nil)";
     }
-    return _users[row - 1].displayableId;
+    return _accounts[row - 1].username;
 }
 
 - (NSString *)subLabelForRow:(NSInteger)row
@@ -101,7 +111,7 @@
     {
         return @"";
     }
-    return _users[row - 1].environment;
+    return _accounts[row - 1].environment;
 }
 
 - (void)rowSelected:(NSInteger)row
@@ -109,42 +119,38 @@
     MSALTestAppSettings *settings = [MSALTestAppSettings settings];
     if (row == 0)
     {
-        settings.currentUser = nil;
+        settings.currentAccount = nil;
     }
     else
     {
-        settings.currentUser = _users[row - 1];
+        settings.currentAccount = _accounts[row - 1];
     }
 }
 
 - (NSInteger)currentRow
 {
-    MSALUser *currentUser = MSALTestAppSettings.settings.currentUser;
-    if (!currentUser)
+    MSALAccount *currentAccount = MSALTestAppSettings.settings.currentAccount;
+    if (!currentAccount)
     {
         return 0;
     }
     
-    NSString *currentUserId = currentUser.userIdentifier;
+    NSString *currentAccountId = currentAccount.homeAccountId.identifier;
     
-    for (NSInteger i = 0; i < _users.count; i++)
+    for (NSInteger i = 0; i < _accounts.count; i++)
     {
-        if ([currentUserId isEqualToString:_users[i].userIdentifier])
+        if ([currentAccountId isEqualToString:_accounts[i].homeAccountId.identifier])
         {
             return i + 1;
         }
     }
-    
-    // TODO: How to handle better?
-    @throw @"Couldn't find the user!";
-    
-    return 0;
+    return -1;
 }
 
 + (NSString *)currentTitle
 {
-    MSALUser *currentUser = MSALTestAppSettings.settings.currentUser;
-    return currentUser ? currentUser.name : @"(nil)";
+    MSALAccount *currentAccount = MSALTestAppSettings.settings.currentAccount;
+    return currentAccount ? currentAccount.username : @"(nil)";
 }
 
 @end
