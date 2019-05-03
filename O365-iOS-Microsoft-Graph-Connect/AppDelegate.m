@@ -15,10 +15,8 @@
 
 - (BOOL)application:(UIApplication *)app openURL:(NSURL *)url options:(NSDictionary<NSString *, id> *)options
 {
-    [MSALPublicClientApplication handleMSALResponse:url
-                                  sourceApplication:options[UIApplicationOpenURLOptionsSourceApplicationKey]];
-    
-    return YES;
+    return [MSALPublicClientApplication handleMSALResponse:url
+                                         sourceApplication:options[UIApplicationOpenURLOptionsSourceApplicationKey]];
 }
 
 @end
