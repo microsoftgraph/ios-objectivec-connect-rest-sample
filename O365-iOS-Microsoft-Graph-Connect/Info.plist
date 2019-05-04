@@ -53,7 +53,6 @@
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>msauth.com.microsoft.O365-iOS-Microsoft-Graph-Connect</string>
-				<string>auth</string>
 			</array>
 		</dict>
 	</array>
