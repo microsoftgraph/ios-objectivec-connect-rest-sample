@@ -8,31 +8,20 @@
 
 @interface AuthenticationManager : NSObject
 
-+ (AuthenticationManager*)sharedInstance;
+@property (nonatomic, readonly) NSString *accessToken;
+@property (nonatomic, readonly) MSALAccount *account;
 
-- (void)initWithAuthority:(NSString*)authority
-               completion:(void (^)(NSError *error))completion;
-
-@property (nonatomic, strong) NSString *accessToken;
-@property (nonatomic, strong) NSString *userID;
-@property (nonatomic, strong) MSALPublicClientApplication *msalClient;
-@property (nonatomic, weak) NSString *clientId;
-@property (nonatomic, weak) NSString *authorty;
-@property (nonatomic, strong) MSALUser *user;
-
+- (instancetype)initWithAuthority:(MSALAuthority *)authority
+                         clientId:(NSString *)clientId
+                            error:(NSError * __autoreleasing *)error;
 
 - (void)acquireAuthTokenWithScopes:(NSArray<NSString *> *)scopes
-                        completion:(void(^)(MSALErrorCode error))completion;
-
--(void) acquireAuthTokenCompletion:(void (^)(MSALErrorCode *error))completion;
+                        completion:(void(^)(BOOL success, NSError *error))completion;
 
 // Clears the ADAL token cache and the cookie cache.
-- (void) clearCredentials;
-
-- (NSString *) getRedirectUrlFromMSALArray:(NSArray *) array;
+- (void)clearCredentials;
 
 @end
-
 
 // *********************************************************
 //
@@ -62,5 +51,3 @@
 // WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 //
 // *********************************************************
-
-

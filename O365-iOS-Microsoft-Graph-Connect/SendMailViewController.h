@@ -5,9 +5,11 @@
 
 #import <UIKit/UIKit.h>
 
+@class AuthenticationManager;
 
 @interface SendMailViewController : UIViewController
 
+@property (nonatomic) AuthenticationManager *authManager;
 
 @end
 
