@@ -1,20 +1,3 @@
----
-page_type: sample 
-products:
-- office-365
-- office-outlook
-- ms-graph
-languages:
-- objc
-extensions:
-  contentType: samples
-  technologies:
-  - Microsoft Graph
-  services:
-  - Office 365
-  - Outlook
-  createdDate: 9/8/2015 12:08:46 PM
----
 # Office 365 Connect Sample for iOS Using Microsoft Graph
 
 Connecting to Office 365 is the first step every iOS app must take to start working with Office 365 services and data. This sample shows how to connect and then call one API through Microsoft Graph (previously called Office 365 unified API).
